@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><style>body{margin:0}</style></head><body>
+<title>Pallet Organizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen dispatch board. Three columns (equipment · pallet lines · load plan), each scrolls on its own; trucks drawn nose-up, scaled to fill the plan column. */
+:root{
+  --bg:#e9edf0; --panel:#fbfcfd; --raise:#f2f5f7; --ink:#16222b; --muted:#5a6873; --line:#d2d9de;
+  --accent:#1b5e8c; --accent-soft:#dbe9f3; --accent-ink:#ffffff;
+  --deck:#e1e6ea; --deck-plank:#d3dade; --truck-edge:#55636d;
+  --ok:#2c7a4b; --ok-soft:#dcefe3; --warn:#9a6400; --warn-soft:#f6ead1; --bad:#b3362c; --bad-soft:#f6dcd9;
+  --pal-ink:#1b2328; --pal-edge:rgba(20,30,38,.45);
+  --c1:#e8c68c; --c2:#b5d2e8; --c3:#c6deb0; --c4:#efb8a2; --c5:#d4c3ec; --c6:#f0dd88; --c7:#a6dacb; --c8:#e7b6d1;
+  --f-display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1519; --panel:#161e24; --raise:#1c262d; --ink:#e4eaee; --muted:#93a1ab; --line:#2a363e;
+  --accent:#5aa7dc; --accent-soft:#183247; --accent-ink:#0c1419;
+  --deck:#202b32; --deck-plank:#28343c; --truck-edge:#8c9aa4;
+  --ok:#5cc489; --ok-soft:#173326; --warn:#e2ad4a; --warn-soft:#352813; --bad:#ef7b70; --bad-soft:#3a1c1a;
+  --pal-ink:#f2f5f7; --pal-edge:rgba(240,245,248,.35);
+  --c1:#7a5e2f; --c2:#2f5d80; --c3:#466a32; --c4:#844634; --c5:#5b4885; --c6:#76692a; --c7:#2b6a5b; --c8:#7d3d61;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1519; --panel:#161e24; --raise:#1c262d; --ink:#e4eaee; --muted:#93a1ab; --line:#2a363e;
+  --accent:#5aa7dc; --accent-soft:#183247; --accent-ink:#0c1419;
+  --deck:#202b32; --deck-plank:#28343c; --truck-edge:#8c9aa4;
+  --ok:#5cc489; --ok-soft:#173326; --warn:#e2ad4a; --warn-soft:#352813; --bad:#ef7b70; --bad-soft:#3a1c1a;
+  --pal-ink:#f2f5f7; --pal-edge:rgba(240,245,248,.35);
+  --c1:#7a5e2f; --c2:#2f5d80; --c3:#466a32; --c4:#844634; --c5:#5b4885; --c6:#76692a; --c7:#2b6a5b; --c8:#7d3d61;
+  color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:13px;line-height:1.35}
+*,*::before,*::after{box-sizing:border-box}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px;padding-inline:16px;padding-block:10px}
+
+/* top bar */
+.bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;min-width:0}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand h1{margin:0;font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.06em;text-transform:uppercase;line-height:1}
+.brand .tag{font-family:var(--f-mono);font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+.totals{display:flex;gap:0;margin-left:auto;border:1px solid var(--line);border-radius:6px;background:var(--panel);overflow:hidden;flex-wrap:wrap}
+.tot{padding:5px 12px;border-left:1px solid var(--line);display:flex;flex-direction:column;min-width:84px}
+.tot:first-child{border-left:0}
+.tot b{font-family:var(--f-mono);font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.tot span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* columns */
+main{display:grid;grid-template-columns:minmax(240px,26fr) minmax(330px,29fr) minmax(0,45fr);gap:10px;min-height:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+.phead{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);min-height:42px;flex-wrap:wrap}
+.phead h2{margin:0;font-family:var(--f-display);font-weight:600;font-size:16px;letter-spacing:.08em;text-transform:uppercase}
+.pbody{flex:1;min-height:0;overflow:auto}
+.pfoot{border-top:1px solid var(--line);padding:7px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--raise)}
+.sub{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0}
+
+/* equipment */
+.eqlist{display:flex;flex-direction:column;padding:6px}
+.eq{display:grid;grid-template-columns:16px 1fr;column-gap:8px;align-items:center;padding:5px 6px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+.eq:hover{background:var(--raise)}
+.eq input{margin:0;accent-color:var(--accent);grid-row:span 2}
+.eq-name{font-weight:600}
+.eq-spec{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.eq:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+.eqsep{height:1px;background:var(--line);margin:5px 6px}
+.custom{padding:4px 12px 12px 30px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}
+.fld{display:grid;grid-template-rows:16px auto;gap:2px}
+.fld label{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.num{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--raise);border:1px solid var(--line);border-radius:4px;padding:3px 6px;width:100%;min-width:0;height:26px}
+.num:focus{border-color:var(--accent);background:var(--panel)}
+.eqnote{margin:0 12px 12px;padding:8px 10px;border-radius:4px;background:var(--raise);color:var(--muted);font-size:11.5px}
+
+/* units toggle */
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--raise)}
+.seg button{border:0;background:transparent;padding:2px 9px;font-family:var(--f-mono);font-size:11.5px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.units{margin-left:auto;display:flex;gap:6px}
+
+/* pallet rows */
+.grid-rows{--cols:30px 50px 54px 54px 54px 62px 34px 24px;padding:4px 8px 8px}
+.rh,.row{display:grid;grid-template-columns:var(--cols);gap:5px;align-items:center}
+.rh{position:sticky;top:0;background:var(--panel);padding:5px 0 4px;z-index:1;font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.rh span{text-align:left;padding-left:2px}
+.rh .ctr{text-align:center;padding-left:0}
+.row{padding:2px 0}
+.row .num{height:23px;padding:2px 5px;font-size:12px}
+.row.incomplete .num:placeholder-shown{border-color:var(--warn)}
+.badge{height:21px;border-radius:3px;font-family:var(--f-mono);font-size:11.5px;font-weight:600;display:grid;place-items:center;color:var(--pal-ink);border:1px solid var(--pal-edge)}
+.chk{display:grid;place-items:center}
+.chk input{margin:0;width:15px;height:15px;accent-color:var(--accent)}
+.del{border:0;background:transparent;color:var(--muted);cursor:pointer;width:22px;height:22px;border-radius:3px;font-size:15px;line-height:1}
+.del:hover{background:var(--bad-soft);color:var(--bad)}
+.addrow{margin-top:6px;width:100%;border:1px dashed var(--line);background:transparent;border-radius:4px;padding:4px;cursor:pointer;color:var(--accent);font-weight:600}
+.addrow:hover{background:var(--accent-soft);border-color:var(--accent)}
+.txtbtn{border:0;background:none;color:var(--muted);cursor:pointer;font-size:11.5px;padding:2px 4px;text-decoration:underline;text-underline-offset:2px}
+.txtbtn:hover{color:var(--ink)}
+.foot-stat{font-family:var(--f-mono);font-size:11.5px;font-variant-numeric:tabular-nums}
+.foot-stat b{font-weight:600}
+.pfoot .spacer{flex:1}
+
+/* plan */
+.verdict{display:inline-flex;align-items:center;gap:6px;font-weight:600;padding:3px 9px;border-radius:999px;font-size:12px}
+.verdict::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.v-ok{background:var(--ok-soft);color:var(--ok)}
+.v-split{background:var(--warn-soft);color:var(--warn)}
+.v-bad{background:var(--bad-soft);color:var(--bad)}
+.v-idle{background:var(--raise);color:var(--muted)}
+.issues{margin:0;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--bad-soft);color:var(--bad);font-size:12px;list-style:none;display:flex;flex-direction:column;gap:2px}
+.trucks{display:grid;gap:10px;padding:10px;align-content:start}
+.tcard{border:1px solid var(--line);border-radius:5px;background:var(--raise);padding:8px;display:flex;flex-direction:column;min-width:0}
+.tcard-head{height:50px;display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.tcard-title{display:flex;justify-content:space-between;gap:6px;align-items:baseline}
+.tcard-title b{font-family:var(--f-display);font-size:15px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;white-space:nowrap}
+.tcard-title span{font-family:var(--f-mono);font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.meter{display:grid;grid-template-columns:auto 1fr;gap:1px 6px;align-items:center;font-size:10.5px;color:var(--muted)}
+.meter .lab{letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.meter .val{font-family:var(--f-mono);text-align:right;color:var(--ink);font-variant-numeric:tabular-nums}
+.meter .track{grid-column:1/-1;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
+.meter .fill{height:100%;background:var(--accent)}
+.meter .fill.hi{background:var(--warn)}
+.meter .fill.over{background:var(--bad)}
+.tsvg{display:flex;justify-content:center;align-items:flex-start;flex:1}
+.tsvg svg{display:block;max-width:100%;height:auto}
+.empty{padding:40px 20px;text-align:center;color:var(--muted);max-width:42ch;margin:auto}
+.empty b{display:block;color:var(--ink);font-family:var(--f-display);font-size:18px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+
+svg .deck{fill:var(--deck);stroke:var(--truck-edge);stroke-width:1.5}
+svg .plank{stroke:var(--deck-plank);stroke-width:1}
+svg .nose{fill:var(--raise);stroke:var(--truck-edge);stroke-width:1.5}
+svg .tick{stroke:var(--muted);stroke-width:1}
+svg .ticklab{fill:var(--muted);font-family:var(--f-mono);font-size:9.5px}
+svg .cap{fill:var(--muted);font-family:var(--f-display);font-size:10px;letter-spacing:.14em;font-weight:600}
+svg .door{stroke:var(--truck-edge);stroke-width:3}
+svg .usedline{stroke:var(--accent);stroke-width:1.25;stroke-dasharray:4 3}
+svg .usedlab{fill:var(--accent);font-family:var(--f-mono);font-size:10px;font-weight:600}
+svg .pal{stroke:var(--pal-edge);stroke-width:1}
+svg .pt{fill:var(--pal-ink);font-family:var(--f-mono);font-size:10.5px}
+svg .pt.b{font-weight:600}
+svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
+
+/* truck fit ladder */
+.fitlist{display:flex;flex-direction:column;padding:6px;gap:1px}
+.fit{display:grid;grid-template-columns:16px minmax(0,1fr) auto;column-gap:8px;row-gap:1px;align-items:center;padding:5px 7px;border-radius:4px;cursor:pointer;border:1px solid transparent}
+.fit:hover{background:var(--raise)}
+.fit input{margin:0;accent-color:var(--accent);grid-row:span 2}
+.fit .nm{font-weight:600;display:flex;gap:6px;align-items:center;min-width:0}
+.fit .sp{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;grid-column:2}
+.fit .st{grid-row:span 2;grid-column:3;text-align:right;font-family:var(--f-mono);font-size:11px;font-variant-numeric:tabular-nums;line-height:1.3}
+.fit .st b{display:block;font-weight:600;font-size:12px}
+.fit.yes .st b{color:var(--ok)}
+.fit.no .st b{color:var(--bad)}
+.fit.no .nm,.fit.no .sp{opacity:.62}
+.fit.na .st b{color:var(--muted)}
+.fit:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
+.fit:has(input:checked) .nm,.fit:has(input:checked) .sp{opacity:1}
+.pill{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;padding:1px 5px;border-radius:3px;background:var(--ok);color:var(--panel);white-space:nowrap}
+.grp{padding:8px 13px 2px;margin:0}
+
+/* plan body */
+.planwrap{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:12px;padding:10px;height:100%;min-height:0}
+.diagram{display:flex;justify-content:center;align-items:flex-start;min-width:0;min-height:0}
+.diagram svg{display:block;max-width:100%;height:auto}
+.facts{display:flex;flex-direction:column;gap:10px;min-width:0}
+.hero{border:1px solid var(--line);border-radius:5px;background:var(--raise);padding:9px 10px}
+.hero .k{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.hero .v{font-family:var(--f-display);font-weight:700;font-size:30px;line-height:1.05;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.hero .n{font-size:11.5px;color:var(--muted);margin-top:2px}
+.hero.accent{border-color:var(--accent);background:var(--accent-soft)}
+.hero.accent .v{color:var(--accent)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;margin:0;font-size:12px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.kv dd.bad{color:var(--bad);font-weight:600}
+.kv dd.ok{color:var(--ok);font-weight:600}
+.overflow{margin:0;padding:8px 10px;border-radius:4px;background:var(--bad-soft);color:var(--bad);font-size:11.5px;list-style:none;display:flex;flex-direction:column;gap:3px}
+
+@media (max-width:1060px){
+  .app,html,body{height:auto}
+  main{grid-template-columns:1fr}
+  .panel.plan .pbody{height:85vh}
+  .totals{margin-left:0}
+}
+@media (max-width:560px){
+  .planwrap{grid-template-columns:1fr;height:auto}
+  .panel.plan .pbody{height:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* center column: pallet grid on top, paste zone pinned at the bottom */
+.panel.lines .pbody{flex:1 1 auto;min-height:120px}
+.pastezone{border-top:2px solid var(--accent);background:var(--accent-soft);display:flex;flex-direction:column;gap:6px;padding:9px 10px 10px;flex:0 1 auto;max-height:56%;min-height:0}
+.pz-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.pz-head h3{margin:0;font-family:var(--f-display);font-weight:700;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.pz-step{font-family:var(--f-mono);font-size:10.5px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 4px}
+.pz-help{margin:0;font-size:11.5px;color:var(--muted);line-height:1.35}
+#pastebox{width:100%;min-height:72px;height:84px;resize:vertical;border:1px solid var(--line);border-radius:5px;background:var(--panel);padding:7px 9px;font-family:var(--f-mono);font-size:11.5px;line-height:1.4;color:var(--ink);flex:0 0 auto}
+#pastebox:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.found{overflow:auto;min-height:0;flex:0 1 auto;border-radius:5px;background:var(--panel);border:1px solid var(--line)}
+.found:empty{display:none}
+.fi{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:2px 8px;align-items:center;padding:5px 8px;border-bottom:1px solid var(--line)}
+.fi:last-child{border-bottom:0}
+.fi input[type=checkbox]{margin:0;width:14px;height:14px;accent-color:var(--accent)}
+.fi .main{font-family:var(--f-mono);font-size:12px;font-variant-numeric:tabular-nums;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;min-width:0}
+.fi .main b{font-weight:600}
+.fi .src{grid-column:2/-1;font-family:var(--f-mono);font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi.off .main,.fi.off .src{opacity:.4;text-decoration:line-through}
+.chips{display:inline-flex;gap:4px;flex-wrap:wrap}
+.chip{font-family:var(--f-body);font-size:9.5px;font-weight:600;letter-spacing:.03em;padding:1px 6px;border-radius:999px;background:var(--warn-soft);color:var(--warn);white-space:nowrap}
+.chip.ok{background:var(--raise);color:var(--muted)}
+.wtmode{display:inline-flex;border:1px solid var(--line);border-radius:4px;overflow:hidden;background:var(--raise);height:20px}
+.wtmode button{border:0;background:transparent;padding:0 6px;font-size:10px;cursor:pointer;color:var(--muted)}
+.wtmode button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);font-weight:600}
+.pz-empty{padding:10px;font-size:11.5px;color:var(--muted)}
+.pz-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pz-actions .sum{font-family:var(--f-mono);font-size:11.5px;font-variant-numeric:tabular-nums}
+.pz-actions .spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:5px;padding:5px 11px;cursor:pointer;font-weight:600;font-size:12px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.sm{padding:3px 9px;font-size:11.5px}
+.shotbtns{margin-left:auto;display:flex;gap:6px}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:6px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+@media (max-width:1060px){.pastezone{max-height:none}.panel.lines .pbody{max-height:50vh}}
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><h1>Pallet Organizer</h1><span class="tag">load planner</span></div>
+    <div class="totals" id="totals"></div>
+  </header>
+
+  <main>
+    <section class="panel equip" aria-labelledby="eq-h">
+      <div class="phead"><h2 id="eq-h">Truck fit</h2></div>
+      <div class="pbody">
+        <div class="fitlist" id="fitlist" role="radiogroup" aria-labelledby="eq-h"></div>
+        <div class="custom" id="custom"></div>
+      </div>
+    </section>
+
+    <section class="panel lines" aria-labelledby="pl-h">
+      <div class="phead">
+        <h2 id="pl-h">Pallets</h2>
+        <div class="units">
+          <div class="seg" role="group" aria-label="Dimension units"><button type="button" id="u-in" data-u="dim" data-v="in">in</button><button type="button" id="u-cm" data-u="dim" data-v="cm">cm</button></div>
+          <div class="seg" role="group" aria-label="Weight units"><button type="button" id="u-lb" data-u="wt" data-v="lb">lb</button><button type="button" id="u-kg" data-u="wt" data-v="kg">kg</button></div>
+        </div>
+      </div>
+      <div class="pbody">
+        <div class="grid-rows">
+          <div class="rh" id="rowhead"></div>
+          <div id="rows"></div>
+          <button type="button" class="addrow" id="addrow">+ Add line</button>
+        </div>
+      </div>
+      <div class="pfoot">
+        <span class="foot-stat" id="linestats"></span>
+        <span class="spacer"></span>
+        <button type="button" class="txtbtn" id="example">Load example</button>
+        <button type="button" class="txtbtn" id="clear">Clear all</button>
+      </div>
+      <div class="pastezone" aria-labelledby="pz-h">
+        <div class="pz-head"><h3 id="pz-h">Paste from email</h3><span class="pz-step">fastest way in</span></div>
+        <p class="pz-help">Copy the whole email (or just the freight part) and paste it below. Dims, weights, pallet counts and stacking are picked out automatically. Addresses, phone numbers, dates and signatures are ignored. Check the lines it found, then load them.</p>
+        <textarea id="pastebox" spellcheck="false" aria-labelledby="pz-h" placeholder="Paste the email here…   e.g.  3 pallets @ 48x40x48, 650 lbs each   ·   (1) 1 Pallet, 500 lbs., L48 x W40 x H78   ·   Dims 48x48x24 – 18-22 crates – 20,000 lbs"></textarea>
+        <div class="found" id="found"></div>
+        <div class="pz-actions">
+          <span class="sum" id="foundsum"></span><span class="spacer"></span>
+          <button type="button" class="txtbtn" id="pastesample">Try a sample</button>
+          <button type="button" class="btn" id="pasteadd" disabled>Add to list</button>
+          <button type="button" class="btn primary" id="pasteload" disabled>Load these pallets</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel plan" aria-labelledby="lp-h">
+      <div class="phead"><h2 id="lp-h">Load plan</h2><span id="verdict" class="verdict v-idle">No pallets</span>
+        <span class="shotbtns"><button type="button" class="btn sm" id="shotcopy" title="Copy a picture of this load plan to paste into an email or chat">Copy image</button><button type="button" class="btn sm" id="shotsave" title="Save this load plan as a PNG file">Save image</button></span></div>
+      <div class="pbody" id="planbody"></div>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+/* ---------- paste parser: free text (emails, tables, notes) -> pallet lines in inches / lb ----------
+   Loose by design: finds every L x W x H it can, then pulls quantity, weight and stacking from the same
+   piece of text or from nearby lines. Everything else (addresses, phones, dates, PO numbers) is ignored. */
+const PasteParser=(function(){
+  const N='(?<![\\d.,])(\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+\\.\\d+|\\.\\d+|\\d+)(?![\\d.])';
+  const U='(inches|inch|in\\b|"|cm\\b|mm\\b|ft\\b|feet|foot|\'|m\\b)';
+  const LAB='(l|w|h|len|lg|wd|wid|ht|hgt|length|width|height|long|wide|high|tall|d|dp|depth)';
+  // one dimension: optional leading label (L48, L: 48), number, optional unit, optional trailing label (48"W)
+  const D='(?:\\b'+LAB+'\\s*[:=]?\\s*)?'+N+'\\s*'+U+'?\\.?(?:\\s*'+LAB+'\\b\\.?)?';
+  const X='\\s*(?:x|\\*|by)\\s*';
+  const pn=s=>parseFloat(String(s).replace(/,/g,''));
+  const unitOf=u=>{if(!u)return'';u=u.toLowerCase();if(u==='"'||u.startsWith('in'))return'in';if(u==="'"||u.startsWith('f'))return'ft';return u};
+  const labOf=l=>{if(!l)return'';l=l.toLowerCase();if(/^(l|len|lg|length|long|d|dp|depth)$/.test(l))return'l';if(/^(w|wd|wid|width|wide)$/.test(l))return'w';return'h'};
+  const toIn=(v,u)=>u==='cm'?v/2.54:u==='mm'?v/25.4:u==='ft'?v*12:u==='m'?v*39.3701:v;
+  const METRIC=[[120,80],[120,100],[100,120],[80,120],[110,110],[114,114],[116,116],[120,120],[60,80],[80,60],[100,100],[60,40]];
+  const blank=(s,a,b)=>s.slice(0,a)+' '.repeat(Math.max(0,b-a))+s.slice(b);
+
+  function norm(s){
+    return s.replace(/[×✕✖⨯]/g,'x').replace(/[″“”]/g,'"').replace(/[′‘’]/g,"'")
+      .replace(/[–—]/g,'-').replace(/ /g,' ')
+      .replace(/(\d)[ \t]*[xX][ \t]*(?=[\d.]|[lwhLWH][ \t]*\d)/g,'$1 x ').replace(/(["'a-zA-Z])[ \t]*X[ \t]*(?=\d|[lwhLWH][ \t]*\d)/g,'$1 x ')
+      // "6 x 48x40x52" -> "6 @ 48x40x52": a count in front of a full L x W x H
+      .replace(/(?<![\d.,])(\d{1,3})([ \t]*)[xX*]([ \t]*)(?=\d[\d.]*[ \t]*["']?[ \t]*[xX*][ \t]*\d[\d.]*[ \t]*["']?[ \t]*[xX*][ \t]*\d)/g,'$1$2@$3');
+  }
+
+  /* ---- dimensions ---- */
+  const RE3=new RegExp(D+X+D+X+D+'(?:\\s*(inches|inch|in\\b|cm\\b|mm\\b|ft\\b))?','gi');
+  const RE2=new RegExp(D+X+D+'\\s*[,;]?\\s*(?:\\b'+LAB+'\\s*[:=]?\\s*)?'+N+'\\s*'+U+'?(?:\\s*'+LAB+'\\b)?(?!\\s*(?:x\\b|\\*|lbs?|#|kg|pounds|%|\\d|[:\\/.-]\\d|am\\b|pm\\b|'+'(?:pallets?|plts?|skids?|pcs?|pieces?|crates?|boxes)\\b))','gi');
+  function readDims(m,three){
+    const g=k=>m[k];
+    const parts=[[1,2,3,4],[5,6,7,8],[9,10,11,12]];
+    let dims,tail='';
+    if(three){dims=parts.map(([a,b,c,d])=>({v:pn(g(b)),u:unitOf(g(c)),lab:labOf(g(a)||g(d))}));tail=unitOf(g(13))}
+    else{dims=parts.slice(0,2).map(([a,b,c,d])=>({v:pn(g(b)),u:unitOf(g(c)),lab:labOf(g(a)||g(d))}));
+      dims.push({v:pn(g(10)),u:unitOf(g(11)),lab:labOf(g(9)||g(12))||'h'})}
+    const explicit=dims.map(d=>d.u).find(Boolean)||tail;
+    dims.forEach(d=>{if(!d.u)d.u=explicit||''});
+    const labs=dims.map(d=>d.lab);let ord=[0,1,2];
+    if(labs.filter(Boolean).length>=2&&new Set(labs.filter(Boolean)).size===labs.filter(Boolean).length){
+      const res=[],used=new Set();
+      for(const k of ['l','w','h']){const i=labs.indexOf(k);if(i>=0){res.push(i);used.add(i)}else res.push(-1)}
+      const rest=[0,1,2].filter(i=>!used.has(i));res.forEach((v,j)=>{if(v<0)res[j]=rest.shift()});ord=res;
+    }
+    const o=ord.map(i=>dims[i]);
+    return{v:o.map(d=>d.v),u:o.map(d=>d.u),explicit:!!explicit};
+  }
+  function findAllDims(line){
+    const out=[];let m;RE3.lastIndex=0;
+    const ok=d=>d.v.every(x=>x>0)&&(d.explicit?d.v.every(x=>x<5000):d.v.every(x=>x<=400)||d.v.every(x=>x<=1300)&&/\bcm\b|mm\b/i.test(line));
+    while((m=RE3.exec(line))){const d=readDims(m,true);if(ok(d))out.push(Object.assign(d,{start:m.index,end:m.index+m[0].length}))}
+    let rest=line;out.forEach(d=>rest=blank(rest,d.start,d.end));
+    RE2.lastIndex=0;
+    while((m=RE2.exec(rest))){const d=readDims(m,false);if(ok(d)&&d.v[2]>=2)out.push(Object.assign(d,{start:m.index,end:m.index+m[0].length,two:1}))}
+    if(!out.length){ // labelled, not chained: Length: 48 Width: 40 Height: 52
+      const lab={l:'(?:l|len|lgth|length|long)',w:'(?:w|wd|wid|width|wide)',h:'(?:h|ht|hgt|height|high|tall)'};
+      const got={};let lo=Infinity,hi=-1;
+      for(const k of ['l','w','h']){
+        const mm=line.match(new RegExp('\\b'+lab[k]+'\\b\\.?\\s*[:=\\-]?\\s*'+N+'\\s*'+U+'?','i'));
+        if(mm){got[k]={v:pn(mm[1]),u:unitOf(mm[2])};lo=Math.min(lo,mm.index);hi=Math.max(hi,mm.index+mm[0].length)}
+      }
+      if(got.l&&got.w&&got.h){const ex=[got.l.u,got.w.u,got.h.u].find(Boolean)||'';
+        out.push({v:[got.l.v,got.w.v,got.h.v],u:[got.l.u||ex,got.w.u||ex,got.h.u||ex],explicit:!!ex,start:lo,end:hi})}
+    }
+    return out.sort((a,b)=>a.start-b.start);
+  }
+
+  /* ---- weight ---- */
+  const WU='(lbs?|pounds?|#|kgs?|kilos?|kilograms?)',WUN='(?:lbs?|pounds?|#|kgs?|kilos?|kilograms?)';
+  function findWeight(line){
+    let v,u,a,b,m;
+    m=line.match(new RegExp('\\b(?:total\\s+|gross\\s+|ttl\\s+)?(?:wt|weight|weighs|gw|gross)\\b\\.?\\s*(?:\\((lbs?|kgs?)\\))?\\s*(?:of|is|=|:|-)?\\s*(?:approx\\.?|about|around|~)?\\s*(\\d[\\d,]*(?:\\.\\d+)?(?:\\s\\d{1,3}(?=\\s*'+WUN+'))?)\\s*'+WU+'?','i'));
+    if(m){v=pn(m[2].replace(/\s/g,''));u=(m[3]||m[1]||'').toLowerCase();a=m.index;b=a+m[0].length}
+    else{
+      m=line.match(new RegExp(N+'\\s*'+WU+'(?![a-z])\\.?','i'));
+      if(!m)return null;
+      v=pn(m[1]);u=m[2].toLowerCase();a=m.index;b=a+m[0].length;
+    }
+    if(!(v>0))return null;
+    if(u==='#'&&v<20)return null;
+    const kg=/^k/.test(u);
+    return{lb:kg?v/0.45359237:v,kg,start:a,end:b};
+  }
+
+  /* ---- quantity ---- */
+  const QW='(?:pallets?|plts?|pltz|skids?|sk|pcs?|pieces?|crates?|cartons?|ctns?|boxes|bxs?|bundles?|units?|totes?|drums?|hu|handling\\s+units?|gaylords?|pkgs?|packages?|cases?|rolls?|reels?|bags?|racks?|carts?)';
+  function findQty(seg,dimsStart){
+    let m;
+    if((m=seg.match(/#\s*(\d{1,3}(?:\s*(?:,|and|&)\s*\d{1,3})+)/i)))return m[1].match(/\d+/g).length;
+    if((m=seg.match(/#\s*(\d{1,3})\s*(?:-|thru|through|to)\s*(\d{1,3})\b/i))&&+m[2]>+m[1])return +m[2]-+m[1]+1;
+    if(dimsStart!=null){
+      const before=seg.slice(0,dimsStart);
+      if((m=before.match(/(?:^|[^\d#.,\/:-])(\d{1,3})\s*(?:x|@)\s*$/i)))return +m[1];
+    }
+    if((m=seg.match(new RegExp('\\b(\\d{1,3})\\s*(?:-|to)\\s*(\\d{1,3})\\s*'+QW+'\\b','i')))&&+m[2]>+m[1])return{q:+m[2],range:m[1]+'-'+m[2]};
+    if((m=seg.match(new RegExp('\\b(\\d{1,3})\\s*(?:x\\s*)?'+QW+'\\b','i'))))return +m[1];
+    if((m=seg.match(new RegExp('\\b(?:qty|quantity|count|'+QW+')\\s*[:=\\-]?\\s*(\\d{1,3})\\b(?!\\s*[:).\\-]|\\s*of\\b|\\s*(?:x|\\*)\\s*\\d)','i'))))return +m[1];
+    if((m=seg.match(/(\d{1,3})\s*@/)))return +m[1];
+    if((m=seg.match(/(?:^|\s)x\s*(\d{1,3})\b(?!\s*(?:x|\*|"|'|in\b|cm\b))/i)))return +m[1];
+    if((m=seg.match(/(?:^|\s)\((\d{1,3})\)(?!\s*\d[\d.]*\s*(?:x|\*))/)))return +m[1];
+    return null;
+  }
+  const isTotal=s=>/\b(total|ttl|tot\.|grand|combined|overall|altogether|in all)\b/i.test(s);
+  function wtMode(s){
+    if(/\b(each|ea|apiece|per\s*(?:pallet|plt|skid|piece|pc|unit|crate|box))\b|\/\s*(?:plt|pallet|skid|ea|pc)\b/i.test(s))return'each';
+    if(isTotal(s))return'total';
+    return'';
+  }
+  function stackOf(s){
+    if(/\b(non[\s-]?stack\w*|not\s+stack\w*|no\s+stack\w*|do\s*n[o']?t\s+stack|don'?t\s+stack|cannot\s+stack|can'?t\s+stack|nostack|top\s+load\s+only)\b/i.test(s))return false;
+    if(/\b(stackable|stacks|can\s+(?:be\s+)?(?:double\s+)?stack(?:ed)?|ok\s+to\s+stack|double\s+stack\w*|stack\s*ok)\b/i.test(s))return true;
+    return null;
+  }
+
+  /* ---- table header: Qty L W H Wt ---- */
+  function headerMap(line){
+    if(/\d/.test(line))return null;
+    const cells=line.split(/\t|\s*\|\s*|\s{2,}|\s*,\s*|\s+/).map(c=>c.trim().toLowerCase()).filter(Boolean);
+    const map=[];const have=new Set();let unitDim='',unitWt='';
+    for(const c of cells){
+      let f;
+      if(/^(qty|quantity|count|pcs|pieces|plts?|pallets?|skids?|units|#)$/.test(c))f='qty';
+      else if(/^(l|len|length)\b/.test(c))f='l';
+      else if(/^(w|wid|width)\b/.test(c))f='w';
+      else if(/^(h|ht|hgt|height)\b/.test(c))f='h';
+      else if(/^(wt|weight|lbs|kgs?|gross|gw)\b/.test(c))f='wt';
+      else if(/^(dims?|dimensions|size)\b/.test(c))f='dims';
+      else if(/^\(?(in|cm|mm)\)?$/.test(c)&&map.length){unitDim=c.replace(/[()]/g,'');continue}
+      else if(/^\(?(lbs?|kgs?)\)?$/.test(c)&&map.length){unitWt=c.replace(/[()]/g,'');continue}
+      else f='x';
+      if(/cm/.test(c))unitDim='cm';if(/kg/.test(c))unitWt='kg';
+      map.push(f);have.add(f);
+    }
+    const known=map.filter(f=>f!=='x').length;
+    return(((have.has('l')&&have.has('w')&&have.has('h'))||have.has('dims'))&&known>=2&&known>=map.length*0.6)?{map,unitDim,unitWt}:null;
+  }
+
+  /* split a line holding several items, e.g. "(1) 1 Pallet ... (2) 1 Pallet ..." */
+  function segments(line){
+    const ds=findAllDims(line);
+    if(ds.length<2)return[line];
+    const enumRe=/(?:^|[\s|,;])\((\d{1,3})\)\s/g;const marks=[];let m;
+    while((m=enumRe.exec(line)))marks.push(m.index+(m[0][0]==='('?0:1));
+    let cuts=[];
+    for(let i=1;i<ds.length;i++){const c=marks.filter(p=>p>=ds[i-1].end&&p<=ds[i].start).pop();if(c!=null)cuts.push(c)}
+    if(cuts.length<ds.length-1){
+      cuts=[];
+      for(let i=1;i<ds.length;i++){
+        const gapS=ds[i-1].end,gapE=ds[i].start,gap=line.slice(gapS,gapE);
+        let c=-1;const qre=new RegExp('(?:\\(\\d{1,3}\\)|\\b\\d{1,3}\\s*(?:@|x\\b|'+QW+'\\b))','gi');let q;
+        while((q=qre.exec(gap)))c=gapS+q.index;
+        if(c<0){const w=findWeight(gap);const sep=gap.search(/[;|]|\s-\s|,\s/);c=w?gapS+w.end:sep>=0?gapS+sep+1:gapE}
+        cuts.push(c);
+      }
+    }
+    const first=marks.filter(p=>p<=ds[0].start).pop();
+    if(first>0)cuts.unshift(first);
+    const segs=[];let p=0;for(const c of cuts){segs.push(line.slice(p,c));p=c}segs.push(line.slice(p));
+    return segs;
+  }
+
+  function parse(text){
+    const src=String(text||'');
+    const normed=norm(src).split(/\r?\n/),origs=src.split(/\r?\n/);
+    const items=[];let pendQty=null,pendWt=null,pendStack=null,table=null,leadQ=false,leadW=false;
+    const globalCm=/\b(cm|centimet)/i.test(src)&&!/\b(in|inch|inches)\b|\d"/i.test(src);
+    const globalKg=/\bkgs?\b|kilo/i.test(src)&&!/\blbs?\b|pounds?|\d\s*#/i.test(src);
+    const totals=[];
+    function handle(seg,i,orig){
+      const ds=findAllDims(seg);
+      if(!ds.length){
+        const w=findWeight(seg);const ln=w?blank(seg,w.start,w.end):seg;
+        let q=findQty(ln,null);const qr=q&&q.q?q:null;if(qr)q=qr.q;
+        const st=stackOf(seg),tot=isTotal(seg);
+        const last=items[items.length-1],near=last&&i-last.lineNo<=8;
+        if(w){
+          if(tot&&items.length){
+            const missing=items.filter(it=>it.wt==null&&i-it.lineNo<=12);
+            if(missing.length)totals.push({lb:w.lb,items:missing});
+          }else if(near&&last.wt==null&&!leadW){last.wt=w.lb;last.wtMode=last.wtMode||wtMode(seg);last.src+='\n'+orig}
+          else pendWt={lb:w.lb,mode:tot?'total':wtMode(seg),at:i};
+        }
+        if(q&&!(tot&&items.length)){
+          if(near&&last.qtyGuessed&&!leadQ&&!w){last.qty=q;last.qtyGuessed=false;last.src+='\n'+orig}
+          else pendQty={q,at:i,range:qr&&qr.range};
+        }
+        if(st!=null){if(near&&!leadQ&&!leadW)last.stack=st;else pendStack={v:st,at:i}}
+        return;
+      }
+      const d=ds[0];
+      let rest=blank(seg,d.start,d.end);
+      const w=findWeight(rest);if(w)rest=blank(rest,w.start,w.end);
+      let q=findQty(rest,d.start),range=null;if(q&&q.q){range=q.range;q=q.q}
+      let fromPend=false;
+      if(q==null&&pendQty&&i-pendQty.at<=6){q=pendQty.q;range=pendQty.range;leadQ=true;fromPend=true}
+      pendQty=null;
+      const flags=[];let units=d.u.slice();
+      if(!d.explicit){
+        const metricPallet=METRIC.some(([a,b])=>d.v[0]===a&&d.v[1]===b);
+        if(globalCm||/\bcm\b/i.test(seg))units=['cm','cm','cm'];
+        else if(metricPallet&&d.v[2]>=60){units=['cm','cm','cm'];flags.push('read as cm')}
+        else units=['in','in','in'];
+      }
+      const conv=units.find(u=>u&&u!=='in');
+      if(conv&&!flags.length)flags.push('from '+conv);
+      if(d.two)flags.push('height guessed');
+      if(range)flags.push('range '+range+', used '+q);
+      const dimsIn=d.v.map((x,k)=>toIn(x,units[k]||'in'));
+      let wlb=w?w.lb:null,mode=w?wtMode(seg):'';
+      if(w&&!w.kg&&globalKg&&!/lb|#|pound/i.test(seg))wlb=w.lb/0.45359237;
+      if(wlb==null&&pendWt&&i-pendWt.at<=6){wlb=pendWt.lb;mode=pendWt.mode;leadW=true}
+      pendWt=null;
+      let st=stackOf(seg);if(st==null&&pendStack&&i-pendStack.at<=6)st=pendStack.v;pendStack=null;
+      const it=mk(i,orig,q,dimsIn,wlb,mode,st,flags);it.fromPend=fromPend;items.push(it);
+    }
+    normed.forEach((nl,i)=>{
+      const orig=(origs[i]||nl).replace(/^[\s>*]+|[\s*]+$/g,'');
+      let line=nl.replace(/^[\s>*]+/,'').replace(/(?<!\d)\*+|\*+(?!\d)|_+/g,' ').replace(/<[^>]*>/g,' ').trim();
+      if(!line)return;
+      if(/^(from|sent|to|cc|bcc|subject|date)\s*:/i.test(line))return;
+      if(/https?:\/\//.test(line)&&!/\d\s*x\s*\d/i.test(line))return;
+      if(/\b(ph|phone|tel|fax|cell|mobile|direct|office|ext|toll\s*free)\b\.?\s*[:#.]?\s*[\d(+]/i.test(line)&&!/\d\s*x\s*\d\s*x?/i.test(line.replace(/\bx\s*\d{2,5}\b/gi,'')))return;
+      const hm=headerMap(line);if(hm){table=hm;return}
+      if(table&&!findAllDims(line).length){
+        const cells=line.split(/\t|\s*\|\s*|\s{2,}|\s*,\s*|\s+/).filter(Boolean);
+        if(cells.length>=table.map.length-1&&cells.filter(c=>/\d/.test(c)).length>=3){
+          const rec={};table.map.forEach((f,k)=>{if(f!=='x'&&cells[k]!=null)rec[f]=cells[k]});
+          let v=null;
+          if(rec.dims){const dd=findAllDims(rec.dims)[0];if(dd)v=dd.v}
+          else if(rec.l&&rec.w&&rec.h)v=[pn(rec.l),pn(rec.w),pn(rec.h)];
+          if(v&&v.every(x=>x>0)){
+            const du=table.unitDim||(globalCm?'cm':'in');const wl=rec.wt?pn(rec.wt):0;
+            items.push(mk(i,orig,rec.qty?parseInt(rec.qty)||null:null,v.map(x=>toIn(x,du)),wl?((table.unitWt||'').startsWith('k')||globalKg?wl/0.45359237:wl):null,'',stackOf(line),du!=='in'?['from '+du]:[]));
+            return;
+          }
+        }
+      }
+      for(const seg of segments(line))handle(seg,i,segments(line).length>1?seg.trim():orig);
+    });
+    // "3 Pallets" over three separate dim lines is a header count, not the first line's quantity
+    for(let k=0;k<items.length;k++){
+      const it=items[k];if(!it.fromPend||it.qty<2)continue;
+      let n=1;while(k+n<items.length&&items[k+n].qtyGuessed&&!items[k+n].fromPend)n++;
+      if(n>1&&n===it.qty){
+        it.qty=1;it.qtyGuessed=false;it.flags=it.flags.filter(f=>!/^range/.test(f));
+        if(it.wt!=null&&it.wtMode==='total'&&!items.slice(k+1,k+n).some(x=>x.wt!=null)){ // weight was for all of them
+          totals.push({lb:it.wt,items:items.slice(k,k+n)});it.wt=null;it.wtMode='';
+        }
+      }
+    }
+    // a trailing "Total weight" goes to the lines that had none, split by size
+    for(const t of totals){
+      const tgt=t.items.filter(it=>it.wt==null);if(!tgt.length)continue;
+      const vol=tgt.reduce((a,it)=>a+it.qty*it.l*it.w*it.h,0);
+      tgt.forEach(it=>{it.wt=t.lb*(it.qty*it.l*it.w*it.h)/vol;it.wtMode='total';if(tgt.length>1)it.flags.push('weight split from total')});
+    }
+    // weight on a multi-pallet line: unless the email says "each", treat it as the line total
+    for(const it of items){
+      if(it.wt==null||it.qty<2||it.wtMode)continue;
+      it.wtMode=it.wt/it.qty<40?'each':'total';it.flags.push('weight read as total');
+    }
+    return items;
+  }
+  function mk(i,orig,q,dims,wlb,mode,st,flags){
+    const qty=q&&q>0&&q<1000?q:1;
+    return{lineNo:i,src:String(orig).trim(),qty,qtyGuessed:!q,l:dims[0],w:dims[1],h:dims[2],wt:wlb,wtMode:mode||'',stack:!!st,flags:flags||[]};
+  }
+  /* final lines: weight per pallet, identical pallets combined */
+  function finalize(items,combine){
+    const out=[];
+    for(const it of items){
+      let each=it.wt;
+      if(each!=null&&it.qty>1&&it.wtMode==='total')each=it.wt/it.qty;
+      const r={qty:it.qty,l:it.l,w:it.w,h:it.h,wt:each||0,stack:it.stack};
+      const k=[r.l,r.w,r.h,r.wt,r.stack].map(x=>typeof x==='number'?x.toFixed(2):x).join('|');
+      const hit=combine&&out.find(o=>o.k===k);
+      if(hit)hit.qty+=r.qty;else out.push(Object.assign(r,{k}));
+    }
+    return out.map(({k,...r})=>r);
+  }
+  return{parse,finalize};
+})();
+
+</script>
+<script>
+(function(){
+const PRESETS=[
+  {id:'van', name:'Cargo van',     L:170,W:70, H:75, P:3500,  auto:1},
+  {id:'b16', name:'16′ box truck', L:192,W:90, H:84, P:5000,  auto:1},
+  {id:'b24', name:'24′ box truck', L:288,W:96, H:96, P:8000,  auto:1},
+  {id:'b26', name:'26′ box truck', L:312,W:96, H:96, P:10000, auto:1},
+  {id:'v48', name:'48′ dry van',   L:570,W:99, H:108,P:45000, auto:1, trl:1},
+  {id:'v53', name:'53′ dry van',   L:630,W:100,H:110,P:45000, auto:1, trl:1},
+  {id:'f48', name:'48′ flatbed',   L:576,W:102,H:102,P:48000},
+  {id:'c20', name:'20′ container', L:232,W:92, H:94, P:38000},
+  {id:'c40', name:'40′ container', L:473,W:92, H:94, P:44000}
+];
+const COLORS=8;
+const KEY='pallet-organizer-claude-v2';
+
+function example(){return{view:'auto',dimU:'in',wtU:'lb',custom:{L:0,W:0,H:0,P:0},nextId:6,rows:[
+  {id:1,qty:6,l:48,w:40,h:48,wt:600,stack:false},
+  {id:2,qty:4,l:48,w:48,h:52,wt:800,stack:false},
+  {id:3,qty:2,l:40,w:48,h:60,wt:1100,stack:false},
+  {id:4,qty:2,l:42,w:42,h:40,wt:400,stack:true},
+  {id:5,qty:0,l:0,w:0,h:0,wt:0,stack:false}]}}
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+if(!S||!Array.isArray(S.rows))S=example();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+/* ---------- units ---------- */
+const r1=v=>Math.round(v*10)/10;
+const dimOut=inch=>S.dimU==='cm'?r1(inch*2.54):r1(inch);
+const dimIn=v=>S.dimU==='cm'?v/2.54:v;
+const wtOut=lb=>S.wtU==='kg'?Math.round(lb*0.45359237):Math.round(lb);
+const wtIn=v=>S.wtU==='kg'?v/0.45359237:v;
+const fmtWt=lb=>wtOut(lb).toLocaleString()+' '+S.wtU;
+const fmtDim=inch=>dimOut(inch)+(S.dimU==='cm'?' cm':'″');
+function fmtLong(inch){
+  if(S.dimU==='cm')return (inch*0.0254).toFixed(2)+' m';
+  const t=Math.round(inch),ft=Math.floor(t/12),i=t%12;
+  return i?`${ft}′ ${i}″`:`${ft}′`;
+}
+/* billable linear footage: round up to the next whole foot (or 0.1 m) */
+function fmtBill(inch){
+  if(S.dimU==='cm')return (Math.ceil(inch*0.254-1e-9)/10).toFixed(1)+' m';
+  return Math.ceil(inch/12-1e-9)+' ft';
+}
+function fmtArea(sqin){return S.dimU==='cm'?(sqin*0.00064516).toFixed(1)+' m²':Math.round(sqin/144).toLocaleString()+' ft²'}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ---------- trucks ---------- */
+function customTruck(){const c=S.custom;return{id:'custom',name:'Custom truck',L:+c.L||0,W:+c.W||0,H:+c.H||0,P:+c.P||0}}
+const customValid=()=>{const t=customTruck();return t.L>0&&t.W>0&&t.H>0&&t.P>0};
+function truckFor(id){return id==='custom'?customTruck():PRESETS.find(p=>p.id===id)}
+
+/* ---------- pallet lines ---------- */
+function renderHead(){
+  const du=S.dimU,wu=S.wtU;
+  document.getElementById('rowhead').innerHTML=
+    `<span class="ctr">#</span><span>Qty</span><span>L ${du}</span><span>W ${du}</span><span>H ${du}</span><span>Wt ${wu}</span><span class="ctr" title="Two of these can stack">Stk</span><span></span>`;
+}
+function rowComplete(r){return r.qty>0&&r.l>0&&r.w>0&&r.h>0}
+function rowBlank(r){return !(r.qty>0||r.l>0||r.w>0||r.h>0||r.wt>0)}
+function renderRows(){
+  document.getElementById('rows').innerHTML=S.rows.map((r,i)=>{
+    const v=(x,fn)=>x>0?fn(x):'';
+    return `<div class="row${rowComplete(r)||rowBlank(r)?'':' incomplete'}" data-id="${r.id}">
+      <span class="badge" style="background:var(--c${i%COLORS+1})">${i+1}</span>
+      <input class="num" id="q-${r.id}" data-f="qty" inputmode="numeric" maxlength="4" placeholder="0" aria-label="Line ${i+1} quantity" value="${v(r.qty,x=>x)}">
+      <input class="num" id="l-${r.id}" data-f="l" inputmode="decimal" maxlength="6" placeholder="L" aria-label="Line ${i+1} length" value="${v(r.l,dimOut)}">
+      <input class="num" id="w-${r.id}" data-f="w" inputmode="decimal" maxlength="6" placeholder="W" aria-label="Line ${i+1} width" value="${v(r.w,dimOut)}">
+      <input class="num" id="h-${r.id}" data-f="h" inputmode="decimal" maxlength="6" placeholder="H" aria-label="Line ${i+1} height" value="${v(r.h,dimOut)}">
+      <input class="num" id="t-${r.id}" data-f="wt" inputmode="decimal" maxlength="6" placeholder="Wt" aria-label="Line ${i+1} weight per pallet" value="${v(r.wt,wtOut)}">
+      <span class="chk"><input type="checkbox" id="s-${r.id}" data-f="stack" aria-label="Line ${i+1} stackable two high" ${r.stack?'checked':''}></span>
+      <button type="button" class="del" data-del="${r.id}" aria-label="Remove line ${i+1}">×</button>
+    </div>`}).join('');
+}
+const rowsEl=document.getElementById('rows');
+rowsEl.addEventListener('input',e=>{
+  const f=e.target.dataset.f;if(!f)return;
+  const id=+e.target.closest('.row').dataset.id,r=S.rows.find(x=>x.id===id);
+  if(f==='stack')r.stack=e.target.checked;
+  else{const v=parseFloat(e.target.value),n=isNaN(v)?0:v;
+    r[f]=f==='qty'?Math.floor(n):f==='wt'?wtIn(n):dimIn(n);}
+  e.target.closest('.row').classList.toggle('incomplete',!(rowComplete(r)||rowBlank(r)));
+  save();plan();
+});
+rowsEl.addEventListener('click',e=>{
+  const id=e.target.dataset.del;if(!id)return;
+  S.rows=S.rows.filter(r=>r.id!==+id);save();renderRows();plan();
+});
+rowsEl.addEventListener('keydown',e=>{
+  if(e.key!=='Enter')return;
+  const row=e.target.closest('.row');if(row&&!row.nextElementSibling){e.preventDefault();addRow()}
+});
+function addRow(){
+  S.nextId=(S.nextId||Date.now())+1;
+  const r={id:S.nextId,qty:0,l:0,w:0,h:0,wt:0,stack:false};
+  S.rows.push(r);save();renderRows();plan();
+  document.getElementById('q-'+r.id).focus();
+}
+document.getElementById('addrow').addEventListener('click',addRow);
+document.getElementById('clear').addEventListener('click',()=>{S.nextId=(S.nextId||1)+1;S.rows=[{id:S.nextId,qty:0,l:0,w:0,h:0,wt:0,stack:false}];save();renderRows();plan()});
+document.getElementById('example').addEventListener('click',()=>{const ex=example();S.rows=ex.rows;S.nextId=ex.nextId;save();renderRows();plan()});
+document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',()=>{
+  if(b.dataset.u==='dim')S.dimU=b.dataset.v;else S.wtU=b.dataset.v;
+  save();renderAll();
+}));
+
+/* ---------- packing: one truck ---------- */
+function expand(T){
+  const out=[];
+  S.rows.forEach((r,idx)=>{
+    if(!rowComplete(r))return;
+    let n=r.qty;
+    if(r.stack&&r.h*2<=T.H){while(n>=2){out.push({line:idx,l:r.l,w:r.w,h:r.h*2,wt:r.wt*2,n:2});n-=2}}
+    while(n-->0)out.push({line:idx,l:r.l,w:r.w,h:r.h,wt:r.wt,n:1});
+  });
+  out.sort((a,b)=>Math.max(b.l,b.w)-Math.max(a.l,a.w)||(b.l*b.w)-(a.l*a.w)||a.line-b.line);
+  return out;
+}
+function whyNot(it,T){
+  if(it.h>T.H+1e-6)return 'too tall';
+  if(!((it.w<=T.W&&it.l<=T.L)||(it.l<=T.W&&it.w<=T.L)))return 'too large';
+  return '';
+}
+function tryPlace(t,it,T){
+  if(t.wt+it.wt>T.P+1e-6)return 'weight';
+  const ors=[[it.l,it.w],[it.w,it.l]];
+  let best=null;
+  for(const s of t.shelves)for(const [d,a] of ors){
+    if(a<=T.W-s.used+1e-6&&d<=s.depth+1e-6){const waste=s.depth-d;if(!best||waste<best.waste)best={s,d,a,waste}}
+  }
+  if(best){t.items.push({x:best.s.used,y:best.s.y,a:best.a,d:best.d,it});best.s.used+=best.a;t.wt+=it.wt;return ''}
+  let nb=null;
+  for(const [d,a] of ors){
+    if(a<=T.W+1e-6&&t.len+d<=T.L+1e-6){const sc=d/Math.floor(T.W/a+1e-9);if(!nb||sc<nb.sc-1e-9||(Math.abs(sc-nb.sc)<1e-9&&d<nb.d))nb={d,a,sc}}
+  }
+  if(!nb)return 'room';
+  const s={y:t.len,depth:nb.d,used:nb.a};t.shelves.push(s);t.len+=nb.d;
+  t.items.push({x:0,y:s.y,a:nb.a,d:nb.d,it});t.wt+=it.wt;return '';
+}
+function packOne(T){
+  const t={shelves:[],items:[],len:0,wt:0},left=[];
+  for(const it of expand(T)){
+    const why=whyNot(it,T)||tryPlace(t,it,T);
+    if(why)left.push({it,why});
+  }
+  const leftN=left.reduce((a,b)=>a+b.it.n,0);
+  const reasons=new Set(left.map(b=>b.why));
+  return{T,t,left,leftN,reasons,fits:left.length===0};
+}
+
+/* ---------- compute ---------- */
+let R=null;
+function compute(){
+  const lines=S.rows.filter(rowComplete);
+  const out={pallets:lines.reduce((a,r)=>a+r.qty,0),weight:lines.reduce((a,r)=>a+r.qty*r.wt,0),
+    area:lines.reduce((a,r)=>a+r.qty*r.l*r.w,0),tallest:lines.reduce((a,r)=>Math.max(a,r.h),0),res:{}};
+  for(const p of PRESETS)out.res[p.id]=packOne(p);
+  if(customValid())out.res.custom=packOne(customTruck());
+  out.smallest=out.pallets?PRESETS.find(p=>p.auto&&out.res[p.id].fits)||null:null;
+  out.v53=out.res.v53;
+  return out;
+}
+function viewId(){
+  if(S.view==='custom'&&customValid())return 'custom';
+  if(S.view&&S.view!=='auto'&&S.view!=='custom')return S.view;
+  return R.smallest?R.smallest.id:'v53';
+}
+
+/* ---------- truck fit list ---------- */
+function statusFor(res){
+  if(!R.pallets)return{cls:'na',top:'—',sub:''};
+  if(res.fits)return{cls:'yes',top:fmtBill(res.t.len),sub:Math.round(res.t.len/res.T.L*100)+'% floor'};
+  const r=res.reasons;
+  let sub=r.has('too tall')?'too tall':r.has('too large')?'too large':r.has('weight')&&!r.has('room')?'over weight':`${res.leftN} won't fit`;
+  return{cls:'no',top:'No',sub};
+}
+function renderFit(){
+  const cur=viewId(),autoOn=!S.view||S.view==='auto'||(S.view==='custom'&&!customValid());
+  const sm=R.smallest;
+  const row=(id,name,spec,st,pill,checked)=>`<label class="fit ${st.cls}"><input type="radio" name="truck" id="tr-${id}" value="${id}" ${checked?'checked':''}>
+    <span class="nm">${name}${pill?'<span class="pill">Smallest</span>':''}</span><span class="st"><b>${st.top}</b>${st.sub}</span>
+    <span class="sp">${spec}</span></label>`;
+  let h=row('auto','Smallest that fits',
+    !R.pallets?'Add pallets to compare trucks':sm?`Showing ${esc(sm.name)}`:'Nothing up to 53′ takes it all',
+    {cls:sm?'yes':R.pallets?'no':'na',top:sm?'✓':R.pallets?'None':'—',sub:''},false,autoOn);
+  h+='<p class="sub grp">Box trucks & vans</p>';
+  const spec=p=>`${fmtLong(p.L)} × ${fmtDim(p.W)} × ${fmtDim(p.H)} · ${fmtWt(p.P)}`;
+  for(const p of PRESETS.filter(p=>p.auto&&!p.trl))h+=row(p.id,p.name,spec(p),statusFor(R.res[p.id]),sm&&sm.id===p.id,!autoOn&&cur===p.id);
+  h+='<p class="sub grp">Trailers</p>';
+  for(const p of PRESETS.filter(p=>p.trl||!p.auto))h+=row(p.id,p.name,spec(p),statusFor(R.res[p.id]),sm&&sm.id===p.id,!autoOn&&cur===p.id);
+  h+='<p class="sub grp">Your equipment</p>';
+  const cv=customValid();
+  h+=row('custom','Custom truck',cv?spec(customTruck()):'Enter inside size below',cv?statusFor(R.res.custom):{cls:'na',top:'—',sub:''},false,!autoOn&&cur==='custom');
+  document.getElementById('fitlist').innerHTML=h;
+}
+function renderCustom(){
+  const du=S.dimU,wu=S.wtU,c=S.custom;
+  const f=(k,lab,val)=>`<div class="fld"><label for="cu-${k}">${lab}</label><input class="num" id="cu-${k}" data-k="${k}" inputmode="decimal" autocomplete="off" placeholder="—" value="${val>0?val:''}"></div>`;
+  document.getElementById('custom').innerHTML=
+    f('L',`Inside length (${du})`,dimOut(c.L))+f('W',`Inside width (${du})`,dimOut(c.W))+
+    f('H',`Inside height (${du})`,dimOut(c.H))+f('P',`Max payload (${wu})`,wtOut(c.P));
+}
+document.getElementById('fitlist').addEventListener('change',e=>{S.view=e.target.value;save();plan()});
+document.getElementById('custom').addEventListener('input',e=>{
+  const k=e.target.dataset.k,v=parseFloat(e.target.value);if(!k)return;
+  S.custom[k]=isNaN(v)?0:(k==='P'?wtIn(v):dimIn(v));
+  S.view='custom';save();plan();
+});
+
+/* ---------- drawing ---------- */
+function truckSVG(res,s){
+  const t=res.t,T=res.T,tickW=30,m=6,nose=20,door=16;
+  const w=T.W*s,h=T.L*s,x0=tickW,y0=nose;
+  const W=Math.ceil(x0+w+m),H=Math.ceil(y0+h+door);
+  let g=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.name)} floor plan, front at top">`;
+  const inset=Math.min(14,w*.12);
+  g+=`<path class="nose" d="M${x0} ${y0} L${x0+inset} ${y0-14} L${x0+w-inset} ${y0-14} L${x0+w} ${y0} Z"/>`;
+  g+=`<text class="cap" x="${x0+w/2}" y="${y0-4}" text-anchor="middle">FRONT</text>`;
+  g+=`<rect class="deck" x="${x0}" y="${y0}" width="${w}" height="${h}"/>`;
+  for(let px=x0+w/8;px<x0+w-1;px+=w/8)g+=`<line class="plank" x1="${px}" y1="${y0+1}" x2="${px}" y2="${y0+h-1}"/>`;
+  const metric=S.dimU==='cm';
+  const step=metric?39.3701:(T.L>360?60:12),lab=metric?(T.L>400?2:1):(T.L>360?2:2);
+  for(let k=0;k*step<=T.L+0.5;k++){
+    const y=y0+k*step*s,big=k%lab===0;
+    g+=`<line class="tick" x1="${x0-(big?7:4)}" y1="${y}" x2="${x0}" y2="${y}"/>`;
+    if(big&&k>0&&(step*lab*s)>16)g+=`<text class="ticklab" x="${x0-9}" y="${y+3}" text-anchor="end">${metric?k+'m':Math.round(k*step/12)+'′'}</text>`;
+  }
+  for(const p of t.items){
+    const x=x0+p.x*s,y=y0+p.y*s,pw=p.a*s,ph=p.d*s,it=p.it,r=S.rows[it.line];
+    g+=`<rect class="pal" x="${x+.75}" y="${y+.75}" width="${Math.max(pw-1.5,1)}" height="${Math.max(ph-1.5,1)}" rx="2" style="fill:var(--c${it.line%COLORS+1})"/>`;
+    if(it.n>1&&pw>14&&ph>14)g+=`<rect class="stackmark" x="${x+4}" y="${y+4}" width="${pw-8}" height="${ph-8}" rx="1.5"/>`;
+    const cx=x+pw/2,cy=y+ph/2,dims=`${dimOut(r.l)}×${dimOut(r.w)}`,tag=`#${it.line+1}${it.n>1?' ×2':''}`;
+    const fitsW=str=>str.length*6.4+6<=pw,lines=[];
+    if(ph>=44&&fitsW(dims)&&fitsW(fmtWt(it.wt)))lines.push([tag,1],[dims,0],[fmtWt(it.wt),0]);
+    else if(ph>=30&&fitsW(dims))lines.push([tag,1],[dims,0]);
+    else if(ph>=14&&fitsW(tag))lines.push([tag,1]);
+    else if(ph>=14&&fitsW('#'+(it.line+1)))lines.push(['#'+(it.line+1),1]);
+    const lh=13,top=cy-(lines.length-1)*lh/2+3.5;
+    lines.forEach(([txt,b],i)=>{g+=`<text class="pt${b?' b':''}" x="${cx}" y="${top+i*lh}" text-anchor="middle">${esc(txt)}</text>`});
+  }
+  if(t.len>0&&t.len<T.L-1){
+    const y=y0+t.len*s;
+    g+=`<line class="usedline" x1="${x0}" y1="${y}" x2="${x0+w}" y2="${y}"/>`;
+    if((T.L-t.len)*s>16)g+=`<text class="usedlab" x="${x0+w-4}" y="${y+12}" text-anchor="end">${fmtLong(t.len)} used</text>`;
+  }
+  g+=`<line class="door" x1="${x0}" y1="${y0+h+1}" x2="${x0+w}" y2="${y0+h+1}"/>`;
+  g+=`<text class="cap" x="${x0+w/2}" y="${y0+h+door-2}" text-anchor="middle">DOORS</text>`;
+  return g+'</svg>';
+}
+
+/* ---------- plan ---------- */
+function plan(){R=compute();renderFit();drawPlan()}
+function drawPlan(){
+  const body=document.getElementById('planbody'),vd=document.getElementById('verdict');
+  const tot=(v,l)=>`<div class="tot"><b>${v}</b><span>${l}</span></div>`;
+  const v53=R.v53,sm=R.smallest;
+  document.getElementById('linestats').innerHTML=`<b>${R.pallets}</b> pallets · <b>${fmtWt(R.weight)}</b> · ${fmtArea(R.area)}`;
+  document.getElementById('totals').innerHTML=tot(R.pallets,'Pallets')+tot(fmtWt(R.weight),'Weight')+
+    tot(R.pallets?(sm?sm.name:'Over 53′'):'—','Smallest truck')+
+    tot(R.pallets?(v53.fits?fmtBill(v53.t.len):'Full+'):'—','On a 53′ trailer');
+  document.getElementById('lp-h').textContent='Load plan';
+  if(!R.pallets){
+    vd.className='verdict v-idle';vd.textContent='No pallets';
+    body.innerHTML=`<div class="empty"><b>Nothing to load yet</b>Enter pallet quantities and dimensions in the middle column. The smallest truck that fits and the trailer footage show up here.</div>`;
+    return;
+  }
+  const id=viewId(),res=R.res[id],T=res.T,t=res.t;
+  document.getElementById('lp-h').textContent=T.name;
+  if(res.fits){vd.className='verdict v-ok';vd.textContent=(sm&&sm.id===id)?'Smallest that fits':'Fits'}
+  else{vd.className='verdict v-bad';vd.textContent=`${res.leftN} pallet${res.leftN>1?'s':''} won't fit`}
+
+  const placedN=t.items.reduce((a,p)=>a+p.it.n,0);
+  const fp=t.len/T.L*100,pp=t.wt/T.P*100;
+  const reason={'too tall':`taller than ${fmtDim(T.H)} inside height`,'too large':'larger than the floor','weight':'over the payload limit','room':'no floor space left'};
+  const by={};res.left.forEach(b=>{const k=b.it.line+'|'+b.why;(by[k]=by[k]||{line:b.it.line,why:b.why,n:0}).n+=b.it.n});
+  const overflow=res.left.length?`<ul class="overflow">${Object.values(by).map(b=>`<li>Line ${b.line+1}: ${b.n} ${reason[b.why]}</li>`).join('')}</ul>`:'';
+
+  const trailerCard=v53.fits
+    ?`<div class="hero accent"><div class="k">53′ trailer, partial</div><div class="v">${fmtBill(v53.t.len)}</div><div class="n">${fmtLong(v53.t.len)} of ${fmtLong(630)} · ${Math.round(v53.t.len/630*100)}% of the deck</div></div>`
+    :`<div class="hero"><div class="k">53′ trailer, partial</div><div class="v" style="color:var(--bad)">Over</div><div class="n">${v53.leftN} pallet${v53.leftN>1?'s':''} won't fit one 53′ trailer</div></div>`;
+  const smallCard=`<div class="hero"><div class="k">Smallest truck</div><div class="v">${sm?esc(sm.name.replace(' truck','')):'None'}</div><div class="n">${sm?`${fmtBill(R.res[sm.id].t.len)} of ${fmtLong(sm.L)} used`:'Nothing up to a 53′ van takes it all'}</div></div>`;
+  const maxH=Math.max(0,...t.items.map(p=>p.it.h));
+  const facts=`${smallCard}${trailerCard}
+    <dl class="kv">
+      <dt>Pallets loaded</dt><dd>${placedN} of ${R.pallets}</dd>
+      <dt>Floor used</dt><dd>${fmtLong(t.len)} · ${Math.round(fp)}%</dd>
+      <dt>Floor left</dt><dd>${fmtLong(Math.max(0,T.L-t.len))}</dd>
+      <dt>Payload</dt><dd class="${pp>100?'bad':''}">${fmtWt(t.wt)} · ${Math.round(pp)}%</dd>
+      <dt>Tallest stack</dt><dd class="${R.tallest>T.H?'bad':''}">${maxH?fmtDim(maxH):'—'} / ${fmtDim(T.H)}</dd>
+    </dl>${overflow}`;
+
+  body.innerHTML=`<div class="planwrap"><div class="diagram" id="diagram"></div><div class="facts">${facts}</div></div>`;
+  const dg=document.getElementById('diagram');
+  const aw=dg.clientWidth,ah=dg.clientHeight||body.clientHeight-20;
+  const s=Math.max(0.25,Math.min((aw-40)/T.W,(Math.max(ah,260)-40)/T.L));
+  dg.innerHTML=truckSVG(res,s);
+}
+
+function renderAll(){
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',String((b.dataset.u==='dim'?S.dimU:S.wtU)===b.dataset.v)));
+  renderHead();renderRows();renderCustom();plan();
+}
+let raf=0;
+new ResizeObserver(()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>{if(R)drawPlan()})}).observe(document.getElementById('planbody'));
+
+/* ---------- toast ---------- */
+const toastEl=document.getElementById('toast');let toastT=0;
+function toast(msg,ms){toastEl.textContent=msg;toastEl.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>toastEl.classList.remove('show'),ms||2600)}
+
+/* ---------- paste from email (always open, bottom of the center column) ---------- */
+const box=document.getElementById('pastebox'),foundEl=document.getElementById('found');
+let PI=[];
+const SAMPLE=`Hi Ryan,
+
+Can you quote the following from Elk Grove Village, IL to Dallas, TX? Ready Friday, dock to dock.
+
+3 pallets @ 48x40x48, 650 lbs each
+2 plts 48" x 48" x 60" - 1,100# ea
+(1) crate 96"L x 48"W x 52"H 1800 lbs, non-stackable
+
+Also 4 skids 42x42x36, 1,200 lbs total, stackable
+
+PO 4471889 / Ref 23-118
+Thanks,
+Mike  |  Ph: 847-555-0100`;
+document.getElementById('pastesample').addEventListener('click',()=>{box.value=SAMPLE;reparse();box.focus()});
+let pt=0;box.addEventListener('input',()=>{clearTimeout(pt);pt=setTimeout(reparse,120)});
+function reparse(){PI=PasteParser.parse(box.value).map(it=>Object.assign(it,{on:true,wtMode:it.wtMode||'each'}));renderFound()}
+const CHIP={'weight read as total':'weight is for all — switch to “each” if not','weight split from total':'weight split from a total','height guessed':'height guessed','read as cm':'read as cm'};
+function renderFound(){
+  if(!box.value.trim()){foundEl.innerHTML='';updPaste();return}
+  if(!PI.length){foundEl.innerHTML=`<div class="pz-empty">No pallet sizes found yet. A line needs three dimensions, like 48x40x50, L48 x W40 x H50 or 48" W x 48" L x 60" H.</div>`;updPaste();return}
+  const du=S.dimU==='cm'?' cm':'″';
+  foundEl.innerHTML=PI.map((it,i)=>{
+    const chips=[];
+    if(it.wt==null)chips.push('no weight');
+    if(it.qtyGuessed)chips.push('qty assumed 1');
+    for(const f of it.flags)chips.push(CHIP[f]||f);
+    const each=it.wt==null?null:(it.wtMode==='total'&&it.qty>1?it.wt/it.qty:it.wt);
+    const mode=it.wt!=null&&it.qty>1?`<span class="wtmode" role="group" aria-label="Weight is per pallet or for all ${it.qty}"><button type="button" data-i="${i}" data-m="each" aria-pressed="${it.wtMode!=='total'}">each</button><button type="button" data-i="${i}" data-m="total" aria-pressed="${it.wtMode==='total'}">total</button></span>`:'';
+    return `<div class="fi${it.on?'':' off'}"><input type="checkbox" data-i="${i}" ${it.on?'checked':''} aria-label="Use line ${i+1}">
+      <span class="main"><b>${it.qty} ×</b><span>${dimOut(it.l)} × ${dimOut(it.w)} × ${dimOut(it.h)}${du}</span><span>${each!=null?fmtWt(each)+' ea':'— lb'}</span>${mode}${it.stack?'<span class="chip ok">stackable</span>':''}<span class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</span></span>
+      <span></span><span class="src" title="${esc(it.src)}">${esc(it.src.replace(/\s*\n\s*/g,' · '))}</span></div>`;
+  }).join('');
+  updPaste();
+}
+function pasteLines(){return PasteParser.finalize(PI.filter(it=>it.on&&it.qty>0&&it.l>0&&it.w>0&&it.h>0),true)}
+function updPaste(){
+  const lines=pasteLines(),n=lines.reduce((a,r)=>a+r.qty,0),wt=lines.reduce((a,r)=>a+r.qty*r.wt,0);
+  document.getElementById('foundsum').innerHTML=n?`Found <b>${n}</b> pallet${n===1?'':'s'} · <b>${fmtWt(wt)}</b>`:'';
+  document.getElementById('pasteadd').disabled=!n;document.getElementById('pasteload').disabled=!n;
+}
+foundEl.addEventListener('change',e=>{const i=e.target.dataset.i;if(i==null)return;PI[+i].on=e.target.checked;e.target.closest('.fi').classList.toggle('off',!PI[+i].on);updPaste()});
+foundEl.addEventListener('click',e=>{const m=e.target.dataset.m;if(!m)return;PI[+e.target.dataset.i].wtMode=m;renderFound()});
+function usePaste(replace){
+  const lines=pasteLines();if(!lines.length)return;
+  if(replace)S.rows=[];else S.rows=S.rows.filter(r=>!rowBlank(r));
+  for(const r of lines){S.nextId=(S.nextId||Date.now())+1;S.rows.push({id:S.nextId,qty:r.qty,l:r.l,w:r.w,h:r.h,wt:r.wt,stack:r.stack})}
+  const n=lines.reduce((a,r)=>a+r.qty,0);
+  save();renderRows();plan();box.value='';PI=[];renderFound();
+  toast(`${replace?'Loaded':'Added'} ${n} pallet${n===1?'':'s'} on ${lines.length} line${lines.length===1?'':'s'}`);
+}
+document.getElementById('pasteadd').addEventListener('click',()=>usePaste(false));
+document.getElementById('pasteload').addEventListener('click',()=>usePaste(true));
+
+/* ---------- picture of the load plan: copy / save ---------- */
+const STY=['fill','stroke','stroke-width','stroke-dasharray','opacity','font-family','font-size','font-weight','letter-spacing','text-anchor'];
+function inlineSvg(svg){
+  const clone=svg.cloneNode(true),src=svg.querySelectorAll('*'),dst=clone.querySelectorAll('*');
+  src.forEach((el,k)=>{const cs=getComputedStyle(el);dst[k].setAttribute('style',STY.map(p=>`${p}:${cs.getPropertyValue(p)}`).join(';'))});
+  clone.setAttribute('xmlns','http://www.w3.org/2000/svg');
+  return new XMLSerializer().serializeToString(clone);
+}
+function loadImg(url){return new Promise((ok,bad)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=bad;im.src=url})}
+async function planImage(){
+  if(!R||!R.pallets)throw new Error('empty');
+  const root=document.documentElement,prevTheme=root.getAttribute('data-theme');
+  root.setAttribute('data-theme','light'); // shared pictures always use the light look
+  try{
+    const id=viewId(),res=R.res[id],T=res.T,t=res.t;
+    const tmp=document.createElement('div');tmp.style.cssText='position:fixed;left:-9999px;top:0';tmp.innerHTML=truckSVG(res,Math.min(1.25,760/T.L,300/T.W));document.body.appendChild(tmp);
+    const svgEl=tmp.querySelector('svg'),sw=+svgEl.getAttribute('width'),sh=+svgEl.getAttribute('height');
+    const svgTxt=inlineSvg(svgEl);tmp.remove();
+    const img=await loadImg('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgTxt));
+    const cs=getComputedStyle(root),v=n=>cs.getPropertyValue(n).trim();
+    const lines=S.rows.filter(rowComplete);
+    const W=1100,pad=36,colX=pad+sw+48,colW=W-colX-pad;
+    const rowsH=26*lines.length+60;
+    const H=Math.max(pad+70+sh+pad, pad+70+300+rowsH+pad);
+    const sc=2,cv=document.createElement('canvas');cv.width=W*sc;cv.height=H*sc;
+    const g=cv.getContext('2d');g.scale(sc,sc);
+    g.fillStyle='#ffffff';g.fillRect(0,0,W,H);
+    const F=(w,s,f)=>`${w} ${s}px ${f==='m'?'"IBM Plex Mono",ui-monospace,monospace':f==='d'?'"Barlow Condensed","Arial Narrow",sans-serif':'"IBM Plex Sans",system-ui,sans-serif'}`;
+    const ink=v('--ink'),muted=v('--muted'),accent=v('--accent'),line=v('--line');
+    // header
+    g.fillStyle=ink;g.font=F(700,30,'d');g.textBaseline='alphabetic';g.fillText('LOAD PLAN · '+T.name.toUpperCase(),pad,pad+26);
+    g.font=F(400,13,'b');g.fillStyle=muted;
+    const when=new Date().toLocaleString([], {month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+    g.fillText(`${R.pallets} pallets · ${fmtWt(R.weight)} · made with Pallet Organizer · ${when}`,pad,pad+48);
+    g.strokeStyle=line;g.lineWidth=1;g.beginPath();g.moveTo(pad,pad+62);g.lineTo(W-pad,pad+62);g.stroke();
+    // diagram
+    g.drawImage(img,pad,pad+76,sw,sh);
+    // facts
+    let y=pad+92;
+    const sm=R.smallest,v53=R.v53;
+    const hero=(k,val,note,hi)=>{g.fillStyle=hi?v('--accent-soft'):v('--raise');g.strokeStyle=hi?accent:line;g.beginPath();g.roundRect(colX,y-16,colW,74,6);g.fill();g.stroke();
+      g.fillStyle=muted;g.font=F(600,11,'b');g.fillText(k.toUpperCase(),colX+12,y+2);
+      g.fillStyle=hi?accent:ink;g.font=F(700,30,'d');g.fillText(val,colX+12,y+34);
+      g.fillStyle=muted;g.font=F(400,12,'b');g.fillText(note,colX+12,y+51);y+=86};
+    hero('Smallest truck',sm?sm.name:'None up to 53′',sm?`${fmtBill(R.res[sm.id].t.len)} of ${fmtLong(sm.L)} used`:'needs more than one trailer');
+    hero('On a 53′ trailer',v53.fits?fmtBill(v53.t.len):'Over',v53.fits?`${fmtLong(v53.t.len)} of 52′ 6″ · ${Math.round(v53.t.len/630*100)}% of the deck`:`${v53.leftN} pallets won't fit one trailer`,true);
+    const kv=[[`Shown: ${T.name}`,res.fits?'All pallets fit':`${res.leftN} won't fit`],['Floor used',`${fmtLong(t.len)} · ${Math.round(t.len/T.L*100)}%`],['Payload',`${fmtWt(t.wt)} · ${Math.round(t.wt/T.P*100)}%`]];
+    g.font=F(400,13,'b');
+    for(const [a,b] of kv){g.fillStyle=muted;g.fillText(a,colX,y);g.fillStyle=ink;g.font=F(500,13,'m');g.textAlign='right';g.fillText(b,colX+colW,y);g.textAlign='left';g.font=F(400,13,'b');y+=22}
+    // pallet lines
+    y+=14;g.fillStyle=muted;g.font=F(600,11,'b');g.fillText('PALLETS',colX,y);y+=6;
+    const cols=[0,34,74,colW-170,colW-60];
+    g.font=F(600,10.5,'b');[['#',0],['QTY',34],['L × W × H',74],['WEIGHT EA',colW-170],['STACK',colW-60]].forEach(([s,x])=>g.fillText(s,colX+x,y+16));
+    g.strokeStyle=line;g.beginPath();g.moveTo(colX,y+24);g.lineTo(colX+colW,y+24);g.stroke();
+    y+=46;
+    lines.forEach(r=>{
+      const idx=S.rows.indexOf(r);
+      g.fillStyle=v('--c'+(idx%COLORS+1));g.strokeStyle=v('--pal-edge');g.beginPath();g.roundRect(colX,y-13,24,18,3);g.fill();g.stroke();
+      g.fillStyle=ink;g.font=F(600,11.5,'m');g.textAlign='center';g.fillText(String(idx+1),colX+12,y);g.textAlign='left';
+      g.font=F(400,13,'m');g.fillText(String(r.qty),colX+cols[1],y);
+      g.fillText(`${dimOut(r.l)} × ${dimOut(r.w)} × ${dimOut(r.h)}${S.dimU==='cm'?' cm':' in'}`,colX+cols[2],y);
+      g.fillText(r.wt?fmtWt(r.wt):'—',colX+cols[3],y);g.fillText(r.stack?'yes':'no',colX+cols[4],y);
+      g.strokeStyle=line;g.beginPath();g.moveTo(colX,y+9);g.lineTo(colX+colW,y+9);g.stroke();y+=26;
+    });
+    return await new Promise(ok=>cv.toBlob(ok,'image/png'));
+  }finally{
+    if(prevTheme==null)root.removeAttribute('data-theme');else root.setAttribute('data-theme',prevTheme);
+  }
+}
+const fileName=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return `load-plan-${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}.png`};
+document.getElementById('shotcopy').addEventListener('click',async()=>{
+  if(!R||!R.pallets){toast('Add some pallets first');return}
+  try{
+    if(!navigator.clipboard||!window.ClipboardItem)throw new Error('no clipboard');
+    await navigator.clipboard.write([new ClipboardItem({'image/png':planImage()})]);
+    toast('Picture copied. Paste it into an email or chat.');
+  }catch(e){toast('This browser blocked copying here. Use Save image instead.',4000)}
+});
+document.getElementById('shotsave').addEventListener('click',async()=>{
+  if(!R||!R.pallets){toast('Add some pallets first');return}
+  let blob;try{blob=await planImage()}catch(e){toast('Could not make the picture.');return}
+  const dl=window.claude&&await window.claude.use('downloads').catch(()=>null);
+  if(dl){
+    try{await dl.save({filename:fileName(),data:blob});toast('Saved '+fileName())}
+    catch(e){if(e&&e.code!=='declined')toast('Could not save the file here.')}
+    return;
+  }
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName();document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+});
+renderAll();
+})();
+</script>
+
+
+</body></html>
