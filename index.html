@@ -70,7 +70,13 @@ main{display:grid;grid-template-columns:minmax(240px,26fr) minmax(330px,29fr) mi
 .eq-spec{font-family:var(--f-mono);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
 .eq:has(input:checked){background:var(--accent-soft);border-color:var(--accent)}
 .eqsep{height:1px;background:var(--line);margin:5px 6px}
-.custom{padding:4px 12px 12px 30px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px}
+.custom{margin:2px 8px 12px 30px;padding:9px 10px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--raise)}
+.fitlist:has(#tr-custom:checked)+.custom{border-color:var(--accent);background:var(--accent-soft)}
+.cu-head{grid-column:1/-1;display:flex;align-items:center;gap:8px}
+.cu-head label{font-size:11px;color:var(--muted);white-space:nowrap}
+.cu-head select{flex:1;min-width:0;font:inherit;font-size:12px;height:26px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);padding:0 6px}
+.cu-note{grid-column:1/-1;margin:0;font-size:11px;color:var(--muted);line-height:1.35}
+.custom .num::placeholder{color:var(--muted);opacity:.65}
 .fld{display:grid;grid-template-rows:16px auto;gap:2px}
 .fld label{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .num{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--raise);border:1px solid var(--line);border-radius:4px;padding:3px 6px;width:100%;min-width:0;height:26px}
@@ -625,8 +631,14 @@ function fmtArea(sqin){return S.dimU==='cm'?(sqin*0.00064516).toFixed(1)+' m²':
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 /* ---------- trucks ---------- */
-function customTruck(){const c=S.custom;return{id:'custom',name:'Custom truck',L:+c.L||0,W:+c.W||0,H:+c.H||0,P:+c.P||0}}
-const customValid=()=>{const t=customTruck();return t.L>0&&t.W>0&&t.H>0&&t.P>0};
+/* custom truck: any box left blank uses the size of the truck it starts from */
+const customBase=()=>PRESETS.find(p=>p.id===S.customBase)||PRESETS.find(p=>p.id==='v53');
+function customTruck(){const c=S.custom||{},b=customBase();
+  const t={id:'custom',L:+c.L||b.L,W:+c.W||b.W,H:+c.H||b.H,P:+c.P||b.P};
+  const ch=[];if(+c.W)ch.push(fmtDim(t.W)+' wide');if(+c.L)ch.push(fmtLong(t.L)+' long');if(+c.H)ch.push(fmtDim(t.H)+' tall');if(+c.P)ch.push(fmtWt(t.P));
+  t.name=ch.length?`${b.name} · ${ch.join(', ')}`:`Custom (${b.name})`;
+  return t}
+const customValid=()=>true;
 function truckFor(id){return id==='custom'?customTruck():PRESETS.find(p=>p.id===id)}
 
 /* ---------- pallet lines ---------- */
@@ -754,7 +766,7 @@ function statusFor(res){
   return{cls:'no',top:'No',sub};
 }
 function renderFit(){
-  const cur=viewId(),autoOn=!S.view||S.view==='auto'||(S.view==='custom'&&!customValid());
+  const cur=viewId(),autoOn=!S.view||S.view==='auto';
   const sm=R.smallest;
   const row=(id,name,spec,st,pill,checked)=>`<label class="fit ${st.cls}"><input type="radio" name="truck" id="tr-${id}" value="${id}" ${checked?'checked':''}>
     <span class="nm">${name}${pill?'<span class="pill">Smallest</span>':''}</span><span class="st"><b>${st.top}</b>${st.sub}</span>
@@ -769,21 +781,32 @@ function renderFit(){
   for(const p of PRESETS.filter(p=>p.trl||!p.auto))h+=row(p.id,p.name,spec(p),statusFor(R.res[p.id]),sm&&sm.id===p.id,!autoOn&&cur===p.id);
   h+='<p class="sub grp">Your equipment</p>';
   const cv=customValid();
-  h+=row('custom','Custom truck',cv?spec(customTruck()):'Enter inside size below',cv?statusFor(R.res.custom):{cls:'na',top:'—',sub:''},false,!autoOn&&cur==='custom');
+  h+=row('custom','Custom truck / trailer',spec(customTruck()),statusFor(R.res.custom),false,!autoOn&&cur==='custom');
   document.getElementById('fitlist').innerHTML=h;
 }
 function renderCustom(){
-  const du=S.dimU,wu=S.wtU,c=S.custom;
-  const f=(k,lab,val)=>`<div class="fld"><label for="cu-${k}">${lab}</label><input class="num" id="cu-${k}" data-k="${k}" inputmode="decimal" autocomplete="off" placeholder="—" value="${val>0?val:''}"></div>`;
+  const du=S.dimU,wu=S.wtU,c=S.custom=S.custom||{},b=customBase();
+  const f=(k,lab,val,ph)=>`<div class="fld"><label for="cu-${k}">${lab}</label><input class="num" id="cu-${k}" data-k="${k}" inputmode="decimal" autocomplete="off" placeholder="${ph}" value="${val>0?val:''}"></div>`;
   document.getElementById('custom').innerHTML=
-    f('L',`Inside length (${du})`,dimOut(c.L))+f('W',`Inside width (${du})`,dimOut(c.W))+
-    f('H',`Inside height (${du})`,dimOut(c.H))+f('P',`Max payload (${wu})`,wtOut(c.P));
+    `<div class="cu-head"><label for="cu-base">Start from</label><select id="cu-base">${PRESETS.map(p=>`<option value="${p.id}" ${p.id===b.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div>`+
+    f('W',`Inside width (${du})`,dimOut(c.W),dimOut(b.W))+f('L',`Inside length (${du})`,dimOut(c.L),dimOut(b.L))+
+    f('H',`Inside height (${du})`,dimOut(c.H),dimOut(b.H))+f('P',`Max payload (${wu})`,wtOut(c.P),wtOut(b.P))+
+    `<p class="cu-note">Type only what's different, like a 90″ width. Blank boxes use the ${esc(b.name)} size shown in grey.${(c.L||c.W||c.H||c.P)?' <button type="button" class="txtbtn" id="cu-reset">Reset</button>':''}</p>`;
 }
-document.getElementById('fitlist').addEventListener('change',e=>{S.view=e.target.value;save();plan()});
+document.getElementById('fitlist').addEventListener('change',e=>{
+  S.view=e.target.value;save();plan();
+  if(S.view==='custom'){const el=document.getElementById('cu-W');document.getElementById('custom').scrollIntoView({block:'nearest',behavior:'smooth'});if(el)el.focus()}
+});
 document.getElementById('custom').addEventListener('input',e=>{
-  const k=e.target.dataset.k,v=parseFloat(e.target.value);if(!k)return;
+  const k=e.target.dataset.k;if(!k)return;const v=parseFloat(e.target.value);
   S.custom[k]=isNaN(v)?0:(k==='P'?wtIn(v):dimIn(v));
   S.view='custom';save();plan();
+});
+document.getElementById('custom').addEventListener('change',e=>{
+  if(e.target.id!=='cu-base')return;S.customBase=e.target.value;S.view='custom';save();renderCustom();plan();
+});
+document.getElementById('custom').addEventListener('click',e=>{
+  if(e.target.id!=='cu-reset')return;S.custom={};save();renderCustom();plan();
 });
 
 /* ---------- drawing ---------- */
