@@ -150,6 +150,14 @@ svg .usedlab{fill:var(--accent);font-family:var(--f-mono);font-size:10px;font-we
 svg .pal{stroke:var(--pal-edge);stroke-width:1}
 svg .pt{fill:var(--pal-ink);font-family:var(--f-mono);font-size:10.5px}
 svg .pt.b{font-weight:600}
+svg .gridl{stroke:var(--deck-plank);stroke-width:.75}
+svg.editable .palg{cursor:grab;touch-action:none}
+svg.editable .palg:hover .pal{stroke:var(--ink);stroke-width:1.5}
+svg.editable .palg:focus{outline:none}
+svg.editable .palg:focus-visible .pal{stroke:var(--accent);stroke-width:2.5}
+svg .palg.dragging{cursor:grabbing;opacity:.85}
+svg .palg.dragging .pal{stroke:var(--accent);stroke-width:2}
+svg .pal.overlap{stroke:var(--bad);stroke-width:2.5}
 svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
 
 /* truck fit ladder */
@@ -172,7 +180,13 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
 
 /* plan body */
 .planwrap{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:12px;padding:10px;height:100%;min-height:0}
-.diagram{display:flex;justify-content:center;align-items:flex-start;min-width:0;min-height:0}
+.diagcol{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0}
+.ptools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
+.ptools .hint{flex:1 1 auto;min-width:0}
+.ptools .snap{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink)}
+.ptools .snap input{margin:0;accent-color:var(--accent)}
+.ptools select{font:inherit;font-size:11.5px;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);padding:0 4px}
+.diagram{flex:1;min-height:0;display:flex;justify-content:center;align-items:flex-start;min-width:0;min-height:0}
 .diagram svg{display:block;max-width:100%;height:auto}
 .facts{display:flex;flex-direction:column;gap:10px;min-width:0}
 .hero{border:1px solid var(--line);border-radius:5px;background:var(--raise);padding:9px 10px}
@@ -810,16 +824,29 @@ document.getElementById('custom').addEventListener('click',e=>{
 });
 
 /* ---------- drawing ---------- */
-function truckSVG(res,s){
+function overlaps(items){
+  const bad=new Set();
+  for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++){
+    const A=items[i],B=items[j];
+    const ox=Math.min(A.x+A.a,B.x+B.a)-Math.max(A.x,B.x),oy=Math.min(A.y+A.d,B.y+B.d)-Math.max(A.y,B.y);
+    if(ox>0.25&&oy>0.25){bad.add(i);bad.add(j)}
+  }
+  return bad;
+}
+function truckSVG(res,s,opt){
+  opt=opt||{};
   const t=res.t,T=res.T,tickW=30,m=6,nose=20,door=16;
   const w=T.W*s,h=T.L*s,x0=tickW,y0=nose;
   const W=Math.ceil(x0+w+m),H=Math.ceil(y0+h+door);
-  let g=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.name)} floor plan, front at top">`;
+  let g=`<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(T.name)} floor plan, front at top"${opt.edit?` class="editable" data-s="${s}" data-x0="${x0}" data-y0="${y0}"`:''}>`;
   const inset=Math.min(14,w*.12);
   g+=`<path class="nose" d="M${x0} ${y0} L${x0+inset} ${y0-14} L${x0+w-inset} ${y0-14} L${x0+w} ${y0} Z"/>`;
   g+=`<text class="cap" x="${x0+w/2}" y="${y0-4}" text-anchor="middle">FRONT</text>`;
   g+=`<rect class="deck" x="${x0}" y="${y0}" width="${w}" height="${h}"/>`;
-  for(let px=x0+w/8;px<x0+w-1;px+=w/8)g+=`<line class="plank" x1="${px}" y1="${y0+1}" x2="${px}" y2="${y0+h-1}"/>`;
+  if(opt.grid&&opt.grid*s>=5){
+    for(let gx=opt.grid;gx<T.W-0.01;gx+=opt.grid)g+=`<line class="gridl" x1="${x0+gx*s}" y1="${y0}" x2="${x0+gx*s}" y2="${y0+h}"/>`;
+    for(let gy=opt.grid;gy<T.L-0.01;gy+=opt.grid)g+=`<line class="gridl" x1="${x0}" y1="${y0+gy*s}" x2="${x0+w}" y2="${y0+gy*s}"/>`;
+  }else for(let px=x0+w/8;px<x0+w-1;px+=w/8)g+=`<line class="plank" x1="${px}" y1="${y0+1}" x2="${px}" y2="${y0+h-1}"/>`;
   const metric=S.dimU==='cm';
   const step=metric?39.3701:(T.L>360?60:12),lab=metric?(T.L>400?2:1):(T.L>360?2:2);
   for(let k=0;k*step<=T.L+0.5;k++){
@@ -827,9 +854,11 @@ function truckSVG(res,s){
     g+=`<line class="tick" x1="${x0-(big?7:4)}" y1="${y}" x2="${x0}" y2="${y}"/>`;
     if(big&&k>0&&(step*lab*s)>16)g+=`<text class="ticklab" x="${x0-9}" y="${y+3}" text-anchor="end">${metric?k+'m':Math.round(k*step/12)+'′'}</text>`;
   }
-  for(const p of t.items){
+  const bad=overlaps(t.items);
+  t.items.forEach((p,k)=>{
     const x=x0+p.x*s,y=y0+p.y*s,pw=p.a*s,ph=p.d*s,it=p.it,r=S.rows[it.line];
-    g+=`<rect class="pal" x="${x+.75}" y="${y+.75}" width="${Math.max(pw-1.5,1)}" height="${Math.max(ph-1.5,1)}" rx="2" style="fill:var(--c${it.line%COLORS+1})"/>`;
+    g+=`<g class="palg" data-k="${k}"${opt.edit?` tabindex="0" role="button" aria-label="Pallet line ${it.line+1}${it.n>1?', stacked two':''}. Click to turn, drag to move."`:''}>`;
+    g+=`<rect class="pal${bad.has(k)?' overlap':''}" x="${x+.75}" y="${y+.75}" width="${Math.max(pw-1.5,1)}" height="${Math.max(ph-1.5,1)}" rx="2" style="fill:var(--c${it.line%COLORS+1})"/>`;
     if(it.n>1&&pw>14&&ph>14)g+=`<rect class="stackmark" x="${x+4}" y="${y+4}" width="${pw-8}" height="${ph-8}" rx="1.5"/>`;
     const cx=x+pw/2,cy=y+ph/2,dims=`${dimOut(r.l)}×${dimOut(r.w)}`,tag=`#${it.line+1}${it.n>1?' ×2':''}`;
     const fitsW=str=>str.length*6.4+6<=pw,lines=[];
@@ -839,7 +868,8 @@ function truckSVG(res,s){
     else if(ph>=14&&fitsW('#'+(it.line+1)))lines.push(['#'+(it.line+1),1]);
     const lh=13,top=cy-(lines.length-1)*lh/2+3.5;
     lines.forEach(([txt,b],i)=>{g+=`<text class="pt${b?' b':''}" x="${cx}" y="${top+i*lh}" text-anchor="middle">${esc(txt)}</text>`});
-  }
+    g+='</g>';
+  });
   if(t.len>0&&t.len<T.L-1){
     const y=y0+t.len*s;
     g+=`<line class="usedline" x1="${x0}" y1="${y}" x2="${x0+w}" y2="${y}"/>`;
@@ -850,6 +880,19 @@ function truckSVG(res,s){
   return g+'</svg>';
 }
 
+/* ---------- hand-arranged layout (drag / turn) ---------- */
+function layoutKey(id,res){
+  const T=res.T;
+  return [id,T.L,T.W,T.H,res.t.items.map(p=>[p.it.line,p.it.l,p.it.w,p.it.h,p.it.n].join(',')).join(';')].join('|');
+}
+function applyManual(id,res){
+  const M=S.manual;
+  if(!M||M.key!==layoutKey(id,res)||M.pos.length!==res.t.items.length)return res;
+  const items=res.t.items.map((p,k)=>{const q=M.pos[k];return{x:q[0],y:q[1],a:q[2],d:q[3],it:p.it}});
+  const len=items.reduce((a,p)=>Math.max(a,p.y+p.d),0);
+  return Object.assign({},res,{t:Object.assign({},res.t,{items,len}),manual:true});
+}
+let LAY=null; // what is on screen: {id,res,s}
 /* ---------- plan ---------- */
 function plan(){R=compute();renderFit();drawPlan()}
 function drawPlan(){
@@ -866,7 +909,7 @@ function drawPlan(){
     body.innerHTML=`<div class="empty"><b>Nothing to load yet</b>Enter pallet quantities and dimensions in the middle column. The smallest truck that fits and the trailer footage show up here.</div>`;
     return;
   }
-  const id=viewId(),res=R.res[id],T=res.T,t=res.t;
+  const id=viewId(),res=applyManual(id,R.res[id]),T=res.T,t=res.t;
   document.getElementById('lp-h').textContent=T.name;
   if(res.fits){vd.className='verdict v-ok';vd.textContent=(sm&&sm.id===id)?'Smallest that fits':'Fits'}
   else{vd.className='verdict v-bad';vd.textContent=`${res.leftN} pallet${res.leftN>1?'s':''} won't fit`}
@@ -889,13 +932,21 @@ function drawPlan(){
       <dt>Floor left</dt><dd>${fmtLong(Math.max(0,T.L-t.len))}</dd>
       <dt>Payload</dt><dd class="${pp>100?'bad':''}">${fmtWt(t.wt)} · ${Math.round(pp)}%</dd>
       <dt>Tallest stack</dt><dd class="${R.tallest>T.H?'bad':''}">${maxH?fmtDim(maxH):'—'} / ${fmtDim(T.H)}</dd>
-    </dl>${overflow}`;
+    </dl>${overflow}${(()=>{const n=overlaps(t.items).size;return n?`<ul class="overflow"><li>${n} pallets overlap. Drag them apart.</li></ul>`:''})()}`;
 
-  body.innerHTML=`<div class="planwrap"><div class="diagram" id="diagram"></div><div class="facts">${facts}</div></div>`;
+  const gridOpts=[1,3,6,12].map(v=>`<option value="${v}" ${S.grid===v?'selected':''}>${S.dimU==='cm'?r1(v*2.54)+' cm':v+'″'}</option>`).join('');
+  const tools=`<div class="ptools">
+      <span class="hint">Click a pallet to turn it · drag to move</span>
+      <label class="snap"><input type="checkbox" id="snapon" ${S.snap!==false?'checked':''}> Snap to grid</label>
+      <select id="gridsize" aria-label="Grid size" ${S.snap===false?'disabled':''}>${gridOpts}</select>
+      <button type="button" class="btn sm" id="layreset" ${res.manual?'':'disabled'} title="Go back to the layout the planner made">Reset layout</button>
+    </div>`;
+  body.innerHTML=`<div class="planwrap"><div class="diagcol">${tools}<div class="diagram" id="diagram"></div></div><div class="facts">${facts}</div></div>`;
   const dg=document.getElementById('diagram');
-  const aw=dg.clientWidth,ah=dg.clientHeight||body.clientHeight-20;
+  const aw=dg.clientWidth,ah=dg.clientHeight||body.clientHeight-60;
   const s=Math.max(0.25,Math.min((aw-40)/T.W,(Math.max(ah,260)-40)/T.L));
-  dg.innerHTML=truckSVG(res,s);
+  LAY={id,res,s};
+  dg.innerHTML=truckSVG(res,s,{edit:true,grid:S.snap!==false?(S.grid||6):0});
 }
 
 function renderAll(){
@@ -979,7 +1030,7 @@ async function planImage(){
   const root=document.documentElement,prevTheme=root.getAttribute('data-theme');
   root.setAttribute('data-theme','light'); // shared pictures always use the light look
   try{
-    const id=viewId(),res=R.res[id],T=res.T,t=res.t;
+    const id=viewId(),res=applyManual(id,R.res[id]),T=res.T,t=res.t;
     const tmp=document.createElement('div');tmp.style.cssText='position:fixed;left:-9999px;top:0';tmp.innerHTML=truckSVG(res,Math.min(1.25,760/T.L,300/T.W));document.body.appendChild(tmp);
     const svgEl=tmp.querySelector('svg'),sw=+svgEl.getAttribute('width'),sh=+svgEl.getAttribute('height');
     const svgTxt=inlineSvg(svgEl);tmp.remove();
@@ -1054,6 +1105,86 @@ document.getElementById('shotsave').addEventListener('click',async()=>{
   }
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fileName();document.body.appendChild(a);a.click();
   setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500);
+});
+
+/* ---------- turn / drag pallets on the diagram ---------- */
+if(S.snap===undefined)S.snap=true;
+if(!S.grid)S.grid=6;
+const planBody=document.getElementById('planbody');
+function curItems(){return LAY.res.t.items.map(p=>({x:p.x,y:p.y,a:p.a,d:p.d}))}
+function commitLayout(items){
+  const auto=R.res[LAY.id];
+  S.manual={key:layoutKey(LAY.id,auto),pos:items.map(p=>[p.x,p.y,p.a,p.d])};
+  // identical to the planner's own layout again? then it's not hand-arranged
+  if(auto.t.items.every((p,k)=>Math.abs(p.x-items[k].x)<.01&&Math.abs(p.y-items[k].y)<.01&&Math.abs(p.a-items[k].a)<.01))S.manual=null;
+  save();drawPlan();
+}
+function snapPos(nx,ny,me,items){
+  const T=LAY.res.T;
+  if(S.snap!==false){
+    const G=S.grid||6,thr=Math.max(1.5,Math.min(4,G/2));
+    const pick=(v,cands)=>{let best=null;for(const c of cands){const dd=Math.abs(c-v);if(dd<=thr&&(!best||dd<best.dd))best={c,dd}}return best?best.c:Math.round(v/G)*G};
+    const xs=[0,T.W-me.a],ys=[0];
+    items.forEach((o,k)=>{if(k===me.k)return;xs.push(o.x+o.a,o.x-me.a,o.x,o.x+o.a-me.a);ys.push(o.y+o.d,o.y-me.d,o.y,o.y+o.d-me.d)});
+    nx=pick(nx,xs);ny=pick(ny,ys);
+  }
+  nx=Math.max(0,Math.min(T.W-me.a,nx));ny=Math.max(0,Math.min(T.L-me.d,ny));
+  return[nx,ny];
+}
+function toInches(svg,e){
+  const pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;
+  const q=pt.matrixTransform(svg.getScreenCTM().inverse()),s=+svg.dataset.s;
+  return{x:(q.x-(+svg.dataset.x0))/s,y:(q.y-(+svg.dataset.y0))/s};
+}
+function turn(k){
+  const items=curItems(),me=items[k],T=LAY.res.T;
+  const cx=me.x+me.a/2,cy=me.y+me.d/2;[me.a,me.d]=[me.d,me.a];
+  if(me.a>T.W+1e-6){toast('That pallet is too long to turn sideways in this trailer');return}
+  me.x=Math.max(0,Math.min(T.W-me.a,cx-me.a/2));me.y=Math.max(0,Math.min(T.L-me.d,cy-me.d/2));
+  if(S.snap!==false){me.k=k;[me.x,me.y]=snapPos(me.x,me.y,me,items)}
+  commitLayout(items);
+  requestAnimationFrame(()=>{const el=planBody.querySelector(`.palg[data-k="${k}"]`);if(el)el.focus()});
+}
+let DR=null;
+planBody.addEventListener('pointerdown',e=>{
+  const g=e.target.closest('svg.editable .palg');if(!g||e.button>0)return;
+  const svg=g.ownerSVGElement,k=+g.dataset.k,items=curItems(),p0=toInches(svg,e);
+  DR={k,g,svg,items,me:Object.assign({k},items[k]),p0,cx:e.clientX,cy:e.clientY,moved:false,nx:items[k].x,ny:items[k].y};
+  g.setPointerCapture(e.pointerId);e.preventDefault();
+});
+planBody.addEventListener('pointermove',e=>{
+  if(!DR)return;
+  if(!DR.moved&&Math.hypot(e.clientX-DR.cx,e.clientY-DR.cy)<5)return;
+  DR.moved=true;DR.g.classList.add('dragging');
+  const p=toInches(DR.svg,e);
+  [DR.nx,DR.ny]=snapPos(DR.me.x+p.x-DR.p0.x,DR.me.y+p.y-DR.p0.y,DR.me,DR.items);
+  const s=+DR.svg.dataset.s;DR.g.setAttribute('transform',`translate(${(DR.nx-DR.me.x)*s} ${(DR.ny-DR.me.y)*s})`);
+  DR.g.parentNode.appendChild(DR.g); // keep the dragged pallet on top
+});
+function endDrag(e,cancel){
+  if(!DR)return;const d=DR;DR=null;
+  if(cancel){drawPlan();return}
+  if(!d.moved){turn(d.k);return}
+  d.items[d.k].x=d.nx;d.items[d.k].y=d.ny;commitLayout(d.items);
+}
+planBody.addEventListener('pointerup',e=>endDrag(e,false));
+planBody.addEventListener('pointercancel',e=>endDrag(e,true));
+planBody.addEventListener('keydown',e=>{
+  const g=e.target.closest&&e.target.closest('svg.editable .palg');if(!g)return;
+  const k=+g.dataset.k;
+  if(e.key==='Enter'||e.key===' '||e.key==='r'||e.key==='R'){e.preventDefault();turn(k);return}
+  const step=e.shiftKey?12:(S.snap!==false?(S.grid||6):1);
+  const mv={ArrowLeft:[-step,0],ArrowRight:[step,0],ArrowUp:[0,-step],ArrowDown:[0,step]}[e.key];if(!mv)return;
+  e.preventDefault();const items=curItems(),me=items[k],T=LAY.res.T;
+  me.x=Math.max(0,Math.min(T.W-me.a,me.x+mv[0]));me.y=Math.max(0,Math.min(T.L-me.d,me.y+mv[1]));
+  commitLayout(items);requestAnimationFrame(()=>{const el=planBody.querySelector(`.palg[data-k="${k}"]`);if(el)el.focus()});
+});
+planBody.addEventListener('change',e=>{
+  if(e.target.id==='snapon'){S.snap=e.target.checked;save();drawPlan()}
+  if(e.target.id==='gridsize'){S.grid=+e.target.value;save();drawPlan()}
+});
+planBody.addEventListener('click',e=>{
+  if(e.target.id==='layreset'){S.manual=null;save();drawPlan();toast('Back to the original layout')}
 });
 renderAll();
 })();
