@@ -3,7 +3,7 @@
 // so the key is never in the public page. Only the app's own site may use it.
 
 const ALLOWED_ORIGINS = ['https://rvirni1.github.io'];
-const MODEL = 'claude-sonnet-5-5';
+const MODEL = 'claude-haiku-5-5';
 const MAX_TOKENS = 3000;
 const MAX_BODY = 8 * 1024 * 1024;      // pictures are sent shrunk, so 8 MB is plenty
 const PER_IP = { limit: 60, windowMs: 10 * 60 * 1000 }; // 60 AI calls per 10 minutes per visitor
