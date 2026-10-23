@@ -90,7 +90,9 @@ main{display:grid;grid-template-columns:minmax(240px,26fr) minmax(330px,29fr) mi
 .units{margin-left:auto;display:flex;gap:6px}
 
 /* pallet rows */
-.grid-rows{--cols:30px 50px 54px 54px 54px 62px 34px 24px;padding:4px 8px 8px}
+.grid-rows{--cols:26px 44px 48px 48px 48px 56px 30px 30px 22px;padding:4px 8px 8px}
+.rh .fixhd{border:0;background:none;padding:0;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;text-align:center;text-decoration:underline dotted;text-underline-offset:2px}
+.rh .fixhd:hover{color:var(--accent)}
 .rh,.row{display:grid;grid-template-columns:var(--cols);gap:5px;align-items:center}
 .rh{position:sticky;top:0;background:var(--panel);padding:5px 0 4px;z-index:1;font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-weight:600}
 .rh span{text-align:left;padding-left:2px}
@@ -421,6 +423,7 @@ const PasteParser=(function(){
     if(isTotal(s))return'total';
     return'';
   }
+  function fixOf(s){return /\b(do\s*n[o']?t|don'?t|no|cannot|can'?t|never)\s+(turn|rotate|spin|pivot)\b|\bnon[\s-]?rotat\w*|\b(this\s+(side|end)\s+(forward|to\s+the\s+front)|must\s+(load|ship)\s+(lengthwise|long\s*ways))\b/i.test(s)}
   function stackOf(s){
     if(/\b(non[\s-]?stack\w*|not\s+stack\w*|no\s+stack\w*|do\s*n[o']?t\s+stack|don'?t\s+stack|cannot\s+stack|can'?t\s+stack|nostack|top\s+load\s+only)\b/i.test(s))return false;
     if(/\b(stackable|stacks|can\s+(?:be\s+)?(?:double\s+)?stack(?:ed)?|ok\s+to\s+stack|double\s+stack\w*|stack\s*ok)\b/i.test(s))return true;
@@ -526,7 +529,7 @@ const PasteParser=(function(){
       if(wlb==null&&pendWt&&i-pendWt.at<=6){wlb=pendWt.lb;mode=pendWt.mode;leadW=true}
       pendWt=null;
       let st=stackOf(seg);if(st==null&&pendStack&&i-pendStack.at<=6)st=pendStack.v;pendStack=null;
-      const it=mk(i,orig,q,dimsIn,wlb,mode,st,flags);it.fromPend=fromPend;items.push(it);
+      const it=mk(i,orig,q,dimsIn,wlb,mode,st,flags);it.fromPend=fromPend;it.fix=fixOf(seg);items.push(it);
     }
     normed.forEach((nl,i)=>{
       const orig=(origs[i]||nl).replace(/^[\s>*]+|[\s*]+$/g,'');
@@ -586,8 +589,8 @@ const PasteParser=(function(){
     for(const it of items){
       let each=it.wt;
       if(each!=null&&it.qty>1&&it.wtMode==='total')each=it.wt/it.qty;
-      const r={qty:it.qty,l:it.l,w:it.w,h:it.h,wt:each||0,stack:it.stack};
-      const k=[r.l,r.w,r.h,r.wt,r.stack].map(x=>typeof x==='number'?x.toFixed(2):x).join('|');
+      const r={qty:it.qty,l:it.l,w:it.w,h:it.h,wt:each||0,stack:it.stack,fix:!!it.fix};
+      const k=[r.l,r.w,r.h,r.wt,r.stack,r.fix].map(x=>typeof x==='number'?x.toFixed(2):x).join('|');
       const hit=combine&&out.find(o=>o.k===k);
       if(hit)hit.qty+=r.qty;else out.push(Object.assign(r,{k}));
     }
@@ -660,7 +663,7 @@ function truckFor(id){return id==='custom'?customTruck():PRESETS.find(p=>p.id===
 function renderHead(){
   const du=S.dimU,wu=S.wtU;
   document.getElementById('rowhead').innerHTML=
-    `<span class="ctr">#</span><span>Qty</span><span>L ${du}</span><span>W ${du}</span><span>H ${du}</span><span>Wt ${wu}</span><span class="ctr" title="Two of these can stack">Stk</span><span></span>`;
+    `<span class="ctr">#</span><span>Qty</span><span>L ${du}</span><span>W ${du}</span><span>H ${du}</span><span>Wt ${wu}</span><span class="ctr" title="Two of these can stack">Stk</span><button type="button" class="fixhd" id="fixall" title="Don't turn: keep each pallet's length running along the trailer. Click to set or clear for every line.">Fix</button><span></span>`;
 }
 function rowComplete(r){return r.qty>0&&r.l>0&&r.w>0&&r.h>0}
 function rowBlank(r){return !(r.qty>0||r.l>0||r.w>0||r.h>0||r.wt>0)}
@@ -675,14 +678,22 @@ function renderRows(){
       <input class="num" id="h-${r.id}" data-f="h" inputmode="decimal" maxlength="6" placeholder="H" aria-label="Line ${i+1} height" value="${v(r.h,dimOut)}">
       <input class="num" id="t-${r.id}" data-f="wt" inputmode="decimal" maxlength="6" placeholder="Wt" aria-label="Line ${i+1} weight per pallet" value="${v(r.wt,wtOut)}">
       <span class="chk"><input type="checkbox" id="s-${r.id}" data-f="stack" aria-label="Line ${i+1} stackable two high" ${r.stack?'checked':''}></span>
+      <span class="chk" title="Don't turn: length stays along the trailer"><input type="checkbox" id="f-${r.id}" data-f="fix" aria-label="Line ${i+1} don't turn" ${r.fix?'checked':''}></span>
       <button type="button" class="del" data-del="${r.id}" aria-label="Remove line ${i+1}">×</button>
     </div>`}).join('');
 }
 const rowsEl=document.getElementById('rows');
+document.getElementById('rowhead').addEventListener('click',e=>{
+  if(e.target.id!=='fixall')return;
+  const live=S.rows.filter(r=>!rowBlank(r)),on=!live.every(r=>r.fix);
+  S.rows.forEach(r=>r.fix=on);save();renderRows();plan();
+  toast(on?'No pallets will be turned':'Pallets can be turned again');
+});
 rowsEl.addEventListener('input',e=>{
   const f=e.target.dataset.f;if(!f)return;
   const id=+e.target.closest('.row').dataset.id,r=S.rows.find(x=>x.id===id);
   if(f==='stack')r.stack=e.target.checked;
+  else if(f==='fix')r.fix=e.target.checked;
   else{const v=parseFloat(e.target.value),n=isNaN(v)?0:v;
     r[f]=f==='qty'?Math.floor(n):f==='wt'?wtIn(n):dimIn(n);}
   e.target.closest('.row').classList.toggle('incomplete',!(rowComplete(r)||rowBlank(r)));
@@ -718,14 +729,15 @@ function expand(T){
   S.rows.forEach((r,idx)=>{
     if(!rowComplete(r))return;
     let n=r.qty;
-    if(r.stack&&r.h*2<=T.H){while(n>=2){out.push({line:idx,l:r.l,w:r.w,h:r.h*2,wt:r.wt*2,n:2});n-=2}}
-    while(n-->0)out.push({line:idx,l:r.l,w:r.w,h:r.h,wt:r.wt,n:1});
+    const fix=!!r.fix;
+    if(r.stack&&r.h*2<=T.H){while(n>=2){out.push({line:idx,l:r.l,w:r.w,h:r.h*2,wt:r.wt*2,n:2,fix});n-=2}}
+    while(n-->0)out.push({line:idx,l:r.l,w:r.w,h:r.h,wt:r.wt,n:1,fix});
   });
   return out;
 }
 function whyNot(it,T){
   if(it.h>T.H+1e-6)return 'too tall';
-  if(!((it.w<=T.W&&it.l<=T.L)||(it.l<=T.W&&it.w<=T.L)))return 'too large';
+  if(!((it.w<=T.W&&it.l<=T.L)||(!it.fix&&it.l<=T.W&&it.w<=T.L)))return it.fix&&it.l<=T.W&&it.w<=T.L?'fixed':'too large';
   return '';
 }
 const EPS=1e-6;
@@ -734,7 +746,7 @@ function mrPack(list,T,rule){
   let free=[{x:0,y:0,w:T.W,h:T.L}];const placed=[];let len=0;
   for(const it of list){
     let best=null;
-    for(const f of free)for(const [a,d] of [[it.w,it.l],[it.l,it.w]]){
+    for(const f of free)for(const [a,d] of (it.fix?[[it.w,it.l]]:[[it.w,it.l],[it.l,it.w]])){
       if(a>f.w+EPS||d>f.h+EPS)continue;
       const x=f.x,y=f.y,end=y+d;
       let sc;
@@ -773,11 +785,11 @@ function shelfPack(list,T){
   const t={shelves:[],items:[],len:0};
   for(const it of list){
     let best=null;
-    for(const s of t.shelves)for(const [d,a] of [[it.l,it.w],[it.w,it.l]])
+    for(const s of t.shelves)for(const [d,a] of (it.fix?[[it.l,it.w]]:[[it.l,it.w],[it.w,it.l]]))
       if(a<=T.W-s.used+EPS&&d<=s.depth+EPS){const waste=s.depth-d;if(!best||waste<best.waste)best={s,d,a,waste}}
     if(best){t.items.push({x:best.s.used,y:best.s.y,a:best.a,d:best.d,it});best.s.used+=best.a;continue}
     let nb=null;
-    for(const [d,a] of [[it.l,it.w],[it.w,it.l]])
+    for(const [d,a] of (it.fix?[[it.l,it.w]]:[[it.l,it.w],[it.w,it.l]]))
       if(a<=T.W+EPS&&t.len+d<=T.L+EPS){const sc=d/Math.floor(T.W/a+1e-9);if(!nb||sc<nb.sc-1e-9||(Math.abs(sc-nb.sc)<1e-9&&d<nb.d))nb={d,a,sc}}
     if(!nb)return null;
     const s={y:t.len,depth:nb.d,used:nb.a};t.shelves.push(s);t.len+=nb.d;t.items.push({x:0,y:s.y,a:nb.a,d:nb.d,it});
@@ -798,7 +810,7 @@ function bestLayout(list,T){
   const consider=r=>{if(r&&(!best||r.len<best.len-1e-6))best=r};
   for(const o of orders){const L=list.slice().sort(o);consider(shelfPack(L,T));for(let rule=0;rule<4;rule++)consider(mrPack(L,T,rule))}
   // a few shuffled loading orders, seeded so the same pallets always give the same plan
-  const distinct=new Set(list.map(it=>[it.l,it.w].sort().join('x'))).size;
+  const distinct=new Set(list.map(it=>[it.l,it.w].sort().join('x')+(it.fix?'f':''))).size;
   if(distinct>1){
     const rand=rng(list.length*7919+list.reduce((a,it)=>a+it.l*31+it.w*17,0));
     const tries=Math.max(8,Math.min(30,Math.floor(900/Math.max(1,list.length))));
@@ -963,7 +975,7 @@ function truckSVG(res,s,opt){
 /* ---------- hand-arranged layout (drag / turn) ---------- */
 function layoutKey(id,res){
   const T=res.T;
-  return [id,T.L,T.W,T.H,res.t.items.map(p=>[p.it.line,p.it.l,p.it.w,p.it.h,p.it.n].join(',')).join(';')].join('|');
+  return [id,T.L,T.W,T.H,res.t.items.map(p=>[p.it.line,p.it.l,p.it.w,p.it.h,p.it.n,p.it.fix?1:0].join(',')).join(';')].join('|');
 }
 function applyManual(id,res){
   const M=S.manual;
@@ -996,7 +1008,7 @@ function drawPlan(){
 
   const placedN=t.items.reduce((a,p)=>a+p.it.n,0);
   const fp=t.len/T.L*100,pp=t.wt/T.P*100;
-  const reason={'too tall':`taller than ${fmtDim(T.H)} inside height`,'too large':'larger than the floor','weight':'over the payload limit','room':'no floor space left'};
+  const reason={'too tall':`taller than ${fmtDim(T.H)} inside height`,'too large':'larger than the floor','fixed':'too wide unless turned (Fix is on)','weight':'over the payload limit','room':'no floor space left'};
   const by={};res.left.forEach(b=>{const k=b.it.line+'|'+b.why;(by[k]=by[k]||{line:b.it.line,why:b.why,n:0}).n+=b.it.n});
   const overflow=res.left.length?`<ul class="overflow">${Object.values(by).map(b=>`<li>Line ${b.line+1}: ${b.n} ${reason[b.why]}</li>`).join('')}</ul>`:'';
 
@@ -1072,7 +1084,7 @@ function renderFound(){
     const each=it.wt==null?null:(it.wtMode==='total'&&it.qty>1?it.wt/it.qty:it.wt);
     const mode=it.wt!=null&&it.qty>1?`<span class="wtmode" role="group" aria-label="Weight is per pallet or for all ${it.qty}"><button type="button" data-i="${i}" data-m="each" aria-pressed="${it.wtMode!=='total'}">each</button><button type="button" data-i="${i}" data-m="total" aria-pressed="${it.wtMode==='total'}">total</button></span>`:'';
     return `<div class="fi${it.on?'':' off'}"><input type="checkbox" data-i="${i}" ${it.on?'checked':''} aria-label="Use line ${i+1}">
-      <span class="main"><b>${it.qty} ×</b><span>${dimOut(it.l)} × ${dimOut(it.w)} × ${dimOut(it.h)}${du}</span><span>${each!=null?fmtWt(each)+' ea':'— lb'}</span>${mode}${it.stack?'<span class="chip ok">stackable</span>':''}<span class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</span></span>
+      <span class="main"><b>${it.qty} ×</b><span>${dimOut(it.l)} × ${dimOut(it.w)} × ${dimOut(it.h)}${du}</span><span>${each!=null?fmtWt(each)+' ea':'— lb'}</span>${mode}${it.stack?'<span class="chip ok">stackable</span>':''}${it.fix?'<span class="chip ok">don\'t turn</span>':''}<span class="chips">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join('')}</span></span>
       <span></span><span class="src" title="${esc(it.src)}">${esc(it.src.replace(/\s*\n\s*/g,' · '))}</span></div>`;
   }).join('');
   updPaste();
@@ -1088,7 +1100,7 @@ foundEl.addEventListener('click',e=>{const m=e.target.dataset.m;if(!m)return;PI[
 function usePaste(replace){
   const lines=pasteLines();if(!lines.length)return;
   if(replace)S.rows=[];else S.rows=S.rows.filter(r=>!rowBlank(r));
-  for(const r of lines){S.nextId=(S.nextId||Date.now())+1;S.rows.push({id:S.nextId,qty:r.qty,l:r.l,w:r.w,h:r.h,wt:r.wt,stack:r.stack})}
+  for(const r of lines){S.nextId=(S.nextId||Date.now())+1;S.rows.push({id:S.nextId,qty:r.qty,l:r.l,w:r.w,h:r.h,wt:r.wt,stack:r.stack,fix:!!r.fix})}
   const n=lines.reduce((a,r)=>a+r.qty,0);
   save();renderRows();plan();box.value='';PI=[];renderFound();
   toast(`${replace?'Loaded':'Added'} ${n} pallet${n===1?'':'s'} on ${lines.length} line${lines.length===1?'':'s'}`);
@@ -1218,6 +1230,8 @@ function toInches(svg,e){
 }
 function turn(k){
   const items=curItems(),me=items[k],T=LAY.res.T;
+  const it=LAY.res.t.items[k].it;
+  if(it.fix){toast(`Line ${it.line+1} is set to Fix (don't turn). Untick Fix to turn it.`,3200);return}
   const cx=me.x+me.a/2,cy=me.y+me.d/2;[me.a,me.d]=[me.d,me.a];
   if(me.a>T.W+1e-6){toast('That pallet is too long to turn sideways in this trailer');return}
   me.x=Math.max(0,Math.min(T.W-me.a,cx-me.a/2));me.y=Math.max(0,Math.min(T.L-me.d,cy-me.d/2));
