@@ -182,7 +182,8 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
 .planwrap{display:grid;grid-template-columns:minmax(0,1fr) 190px;gap:12px;padding:10px;height:100%;min-height:0}
 .diagcol{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:0}
 .ptools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--muted)}
-.ptools .hint{flex:1 1 auto;min-width:0}
+.ptools .hint{flex:1 1 auto;min-width:0;line-height:1.35}
+.ptools .legend{font-size:10.5px;opacity:.85}
 .ptools .snap{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink)}
 .ptools .snap input{margin:0;accent-color:var(--accent)}
 .ptools select{font:inherit;font-size:11.5px;height:24px;border:1px solid var(--line);border-radius:4px;background:var(--panel);color:var(--ink);padding:0 4px}
@@ -650,7 +651,7 @@ const customBase=()=>PRESETS.find(p=>p.id===S.customBase)||PRESETS.find(p=>p.id=
 function customTruck(){const c=S.custom||{},b=customBase();
   const t={id:'custom',L:+c.L||b.L,W:+c.W||b.W,H:+c.H||b.H,P:+c.P||b.P};
   const ch=[];if(+c.W)ch.push(fmtDim(t.W)+' wide');if(+c.L)ch.push(fmtLong(t.L)+' long');if(+c.H)ch.push(fmtDim(t.H)+' tall');if(+c.P)ch.push(fmtWt(t.P));
-  t.name=ch.length?`${b.name} · ${ch.join(', ')}`:`Custom (${b.name})`;
+  t.name=!ch.length?`Custom (${b.name})`:(+c.L?'Custom truck':b.name)+' · '+ch.join(', ');
   return t}
 const customValid=()=>true;
 function truckFor(id){return id==='custom'?customTruck():PRESETS.find(p=>p.id===id)}
@@ -709,7 +710,9 @@ document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',(
   save();renderAll();
 }));
 
-/* ---------- packing: one truck ---------- */
+/* ---------- packing: one truck ----------
+   Floor plan packing: every pallet gets a spot on the deck, turned either way, so that the load ends as close to
+   the nose as possible. Tries several placement rules and loading orders (deterministic) and keeps the shortest. */
 function expand(T){
   const out=[];
   S.rows.forEach((r,idx)=>{
@@ -718,7 +721,6 @@ function expand(T){
     if(r.stack&&r.h*2<=T.H){while(n>=2){out.push({line:idx,l:r.l,w:r.w,h:r.h*2,wt:r.wt*2,n:2});n-=2}}
     while(n-->0)out.push({line:idx,l:r.l,w:r.w,h:r.h,wt:r.wt,n:1});
   });
-  out.sort((a,b)=>Math.max(b.l,b.w)-Math.max(a.l,a.w)||(b.l*b.w)-(a.l*a.w)||a.line-b.line);
   return out;
 }
 function whyNot(it,T){
@@ -726,28 +728,106 @@ function whyNot(it,T){
   if(!((it.w<=T.W&&it.l<=T.L)||(it.l<=T.W&&it.w<=T.L)))return 'too large';
   return '';
 }
-function tryPlace(t,it,T){
-  if(t.wt+it.wt>T.P+1e-6)return 'weight';
-  const ors=[[it.l,it.w],[it.w,it.l]];
+const EPS=1e-6;
+function mrPack(list,T,rule){
+  // MaxRects: free rectangles on the deck; x across the width, y along the length (0 = nose)
+  let free=[{x:0,y:0,w:T.W,h:T.L}];const placed=[];let len=0;
+  for(const it of list){
+    let best=null;
+    for(const f of free)for(const [a,d] of [[it.w,it.l],[it.l,it.w]]){
+      if(a>f.w+EPS||d>f.h+EPS)continue;
+      const x=f.x,y=f.y,end=y+d;
+      let sc;
+      if(rule===0)sc=[Math.max(len,end),y,x];                       // keep the load short, then front-left
+      else if(rule===1)sc=[y,x,Math.max(len,end)];                  // bottom-left
+      else if(rule===2)sc=[Math.max(len,end),Math.min(f.w-a,f.h-d),y]; // short, then tightest fit
+      else sc=[Math.max(len,end),-(touch(placed,x,y,a,d,T)),y,x];   // short, then most contact
+      if(!best||lt(sc,best.sc))best={sc,x,y,a,d};
+    }
+    if(!best)return null;
+    const r={x:best.x,y:best.y,a:best.a,d:best.d,it};placed.push(r);len=Math.max(len,r.y+r.d);
+    // split free rectangles that the new pallet overlaps
+    const nf=[];
+    for(const f of free){
+      if(r.x>=f.x+f.w-EPS||r.x+r.a<=f.x+EPS||r.y>=f.y+f.h-EPS||r.y+r.d<=f.y+EPS){nf.push(f);continue}
+      if(r.x>f.x+EPS)nf.push({x:f.x,y:f.y,w:r.x-f.x,h:f.h});
+      if(r.x+r.a<f.x+f.w-EPS)nf.push({x:r.x+r.a,y:f.y,w:f.x+f.w-r.x-r.a,h:f.h});
+      if(r.y>f.y+EPS)nf.push({x:f.x,y:f.y,w:f.w,h:r.y-f.y});
+      if(r.y+r.d<f.y+f.h-EPS)nf.push({x:f.x,y:r.y+r.d,w:f.w,h:f.y+f.h-r.y-r.d});
+    }
+    free=nf.filter((f,i)=>f.w>EPS&&f.h>EPS&&!nf.some((g,j)=>j!==i&&g.x<=f.x+EPS&&g.y<=f.y+EPS&&g.x+g.w>=f.x+f.w-EPS&&g.y+g.h>=f.y+f.h-EPS&&(j<i||!(Math.abs(g.x-f.x)<EPS&&Math.abs(g.y-f.y)<EPS&&Math.abs(g.w-f.w)<EPS&&Math.abs(g.h-f.h)<EPS))));
+  }
+  return{items:placed,len};
+}
+function lt(a,b){for(let i=0;i<a.length;i++){if(a[i]<b[i]-1e-9)return true;if(a[i]>b[i]+1e-9)return false}return false}
+function touch(placed,x,y,a,d,T){
+  let c=0;
+  if(x<EPS)c+=d;if(x+a>T.W-EPS)c+=d;if(y<EPS)c+=a;
+  for(const p of placed){
+    if(Math.abs(p.x+p.a-x)<EPS||Math.abs(x+a-p.x)<EPS)c+=Math.max(0,Math.min(y+d,p.y+p.d)-Math.max(y,p.y));
+    if(Math.abs(p.y+p.d-y)<EPS||Math.abs(y+d-p.y)<EPS)c+=Math.max(0,Math.min(x+a,p.x+p.a)-Math.max(x,p.x));
+  }
+  return c;
+}
+function shelfPack(list,T){
+  const t={shelves:[],items:[],len:0};
+  for(const it of list){
+    let best=null;
+    for(const s of t.shelves)for(const [d,a] of [[it.l,it.w],[it.w,it.l]])
+      if(a<=T.W-s.used+EPS&&d<=s.depth+EPS){const waste=s.depth-d;if(!best||waste<best.waste)best={s,d,a,waste}}
+    if(best){t.items.push({x:best.s.used,y:best.s.y,a:best.a,d:best.d,it});best.s.used+=best.a;continue}
+    let nb=null;
+    for(const [d,a] of [[it.l,it.w],[it.w,it.l]])
+      if(a<=T.W+EPS&&t.len+d<=T.L+EPS){const sc=d/Math.floor(T.W/a+1e-9);if(!nb||sc<nb.sc-1e-9||(Math.abs(sc-nb.sc)<1e-9&&d<nb.d))nb={d,a,sc}}
+    if(!nb)return null;
+    const s={y:t.len,depth:nb.d,used:nb.a};t.shelves.push(s);t.len+=nb.d;t.items.push({x:0,y:s.y,a:nb.a,d:nb.d,it});
+  }
+  return{items:t.items,len:t.len};
+}
+function rng(seed){let s=seed>>>0||1;return()=>{s^=s<<13;s^=s>>>17;s^=s<<5;return(s>>>0)/4294967296}}
+function bestLayout(list,T){
+  if(!list.length)return{items:[],len:0};
+  const big=it=>Math.max(it.l,it.w),area=it=>it.l*it.w;
+  const orders=[
+    (a,b)=>big(b)-big(a)||area(b)-area(a)||a.line-b.line,
+    (a,b)=>area(b)-area(a)||big(b)-big(a)||a.line-b.line,
+    (a,b)=>Math.min(b.l,b.w)-Math.min(a.l,a.w)||big(b)-big(a)||a.line-b.line,
+    (a,b)=>(b.l+b.w)-(a.l+a.w)||a.line-b.line,
+  ];
   let best=null;
-  for(const s of t.shelves)for(const [d,a] of ors){
-    if(a<=T.W-s.used+1e-6&&d<=s.depth+1e-6){const waste=s.depth-d;if(!best||waste<best.waste)best={s,d,a,waste}}
+  const consider=r=>{if(r&&(!best||r.len<best.len-1e-6))best=r};
+  for(const o of orders){const L=list.slice().sort(o);consider(shelfPack(L,T));for(let rule=0;rule<4;rule++)consider(mrPack(L,T,rule))}
+  // a few shuffled loading orders, seeded so the same pallets always give the same plan
+  const distinct=new Set(list.map(it=>[it.l,it.w].sort().join('x'))).size;
+  if(distinct>1){
+    const rand=rng(list.length*7919+list.reduce((a,it)=>a+it.l*31+it.w*17,0));
+    const tries=Math.max(8,Math.min(30,Math.floor(900/Math.max(1,list.length))));
+    const base=list.slice().sort(orders[0]);
+    for(let k=0;k<tries;k++){
+      const L=base.slice();
+      for(let i=L.length-1;i>0;i--){if(rand()<0.35){const j=Math.max(0,i-1-Math.floor(rand()*3));[L[i],L[j]]=[L[j],L[i]]}}
+      consider(mrPack(L,T,k%4));
+    }
   }
-  if(best){t.items.push({x:best.s.used,y:best.s.y,a:best.a,d:best.d,it});best.s.used+=best.a;t.wt+=it.wt;return ''}
-  let nb=null;
-  for(const [d,a] of ors){
-    if(a<=T.W+1e-6&&t.len+d<=T.L+1e-6){const sc=d/Math.floor(T.W/a+1e-9);if(!nb||sc<nb.sc-1e-9||(Math.abs(sc-nb.sc)<1e-9&&d<nb.d))nb={d,a,sc}}
-  }
-  if(!nb)return 'room';
-  const s={y:t.len,depth:nb.d,used:nb.a};t.shelves.push(s);t.len+=nb.d;
-  t.items.push({x:0,y:s.y,a:nb.a,d:nb.d,it});t.wt+=it.wt;return '';
+  return best;
 }
 function packOne(T){
-  const t={shelves:[],items:[],len:0,wt:0},left=[];
-  for(const it of expand(T)){
-    const why=whyNot(it,T)||tryPlace(t,it,T);
-    if(why)left.push({it,why});
+  const left=[],ok=[];
+  for(const it of expand(T)){const w=whyNot(it,T);if(w)left.push({it,why:w});else ok.push(it)}
+  // weight: load heaviest-per-floor-space first until the payload is used up
+  let wt=0;const fit=[];
+  for(const it of ok.slice().sort((a,b)=>a.line-b.line)){if(wt+it.wt>T.P+1e-6)left.push({it,why:'weight'});else{wt+=it.wt;fit.push(it)}}
+  let lay=bestLayout(fit,T);
+  if(!lay){ // not everything fits on the floor: find how many of them do (in loading order)
+    const L=fit.slice().sort((a,b)=>Math.max(b.l,b.w)-Math.max(a.l,a.w)||a.line-b.line);
+    let lo=0,hi=L.length-1,good={items:[],len:0};
+    while(lo<=hi){const mid=(lo+hi)>>1;const r=bestLayout(L.slice(0,mid),T);if(r){good=r;lo=mid+1}else hi=mid-1}
+    lay=good;const keep=new Set(lay.items.map(p=>p.it));
+    for(const it of L)if(!keep.has(it)){left.push({it,why:'room'});wt-=it.wt}
   }
+  // nose-first order, so the list reads front to back
+  lay.items.sort((a,b)=>a.y-b.y||a.x-b.x);
+  const t={items:lay.items,len:lay.len,wt};
   const leftN=left.reduce((a,b)=>a+b.it.n,0);
   const reasons=new Set(left.map(b=>b.why));
   return{T,t,left,leftN,reasons,fits:left.length===0};
@@ -860,7 +940,7 @@ function truckSVG(res,s,opt){
     g+=`<g class="palg" data-k="${k}"${opt.edit?` tabindex="0" role="button" aria-label="Pallet line ${it.line+1}${it.n>1?', stacked two':''}. Click to turn, drag to move."`:''}>`;
     g+=`<rect class="pal${bad.has(k)?' overlap':''}" x="${x+.75}" y="${y+.75}" width="${Math.max(pw-1.5,1)}" height="${Math.max(ph-1.5,1)}" rx="2" style="fill:var(--c${it.line%COLORS+1})"/>`;
     if(it.n>1&&pw>14&&ph>14)g+=`<rect class="stackmark" x="${x+4}" y="${y+4}" width="${pw-8}" height="${ph-8}" rx="1.5"/>`;
-    const cx=x+pw/2,cy=y+ph/2,dims=`${dimOut(r.l)}×${dimOut(r.w)}`,tag=`#${it.line+1}${it.n>1?' ×2':''}`;
+    const cx=x+pw/2,cy=y+ph/2,dims=`${dimOut(p.d)}×${dimOut(p.a)}`,tag=`#${it.line+1}${it.n>1?' ×2':''}`;
     const fitsW=str=>str.length*6.4+6<=pw,lines=[];
     if(ph>=44&&fitsW(dims)&&fitsW(fmtWt(it.wt)))lines.push([tag,1],[dims,0],[fmtWt(it.wt),0]);
     else if(ph>=30&&fitsW(dims))lines.push([tag,1],[dims,0]);
@@ -936,7 +1016,7 @@ function drawPlan(){
 
   const gridOpts=[1,3,6,12].map(v=>`<option value="${v}" ${S.grid===v?'selected':''}>${S.dimU==='cm'?r1(v*2.54)+' cm':v+'″'}</option>`).join('');
   const tools=`<div class="ptools">
-      <span class="hint">Click a pallet to turn it · drag to move</span>
+      <span class="hint">Click a pallet to turn it · drag to move<br><span class="legend">Labels read length along the trailer × width across it</span></span>
       <label class="snap"><input type="checkbox" id="snapon" ${S.snap!==false?'checked':''}> Snap to grid</label>
       <select id="gridsize" aria-label="Grid size" ${S.snap===false?'disabled':''}>${gridOpts}</select>
       <button type="button" class="btn sm" id="layreset" ${res.manual?'':'disabled'} title="Go back to the layout the planner made">Reset layout</button>
