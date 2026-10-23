@@ -219,7 +219,7 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
 
 /* center column: pallet grid on top, paste zone pinned at the bottom */
 .panel.lines .pbody{flex:1 1 auto;min-height:120px}
-.pastezone{border-top:2px solid var(--accent);background:var(--accent-soft);display:flex;flex-direction:column;gap:6px;padding:9px 10px 10px;flex:0 1 auto;max-height:56%;min-height:0}
+.pastezone{border-top:2px solid var(--accent);background:var(--accent-soft);display:flex;flex-direction:column;gap:6px;padding:9px 10px 10px;flex:0 1 auto;max-height:62%;min-height:0}
 .pz-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .pz-head h3{margin:0;font-family:var(--f-display);font-weight:700;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
 .pz-step{font-family:var(--f-mono);font-size:10.5px;color:var(--accent);border:1px solid var(--accent);border-radius:3px;padding:0 4px}
@@ -228,6 +228,7 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
 #pastebox:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
 .found{overflow:auto;min-height:0;flex:0 1 auto;border-radius:5px;background:var(--panel);border:1px solid var(--line)}
 .found:empty{display:none}
+.found:has(.fi){min-height:62px}
 .fi{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:2px 8px;align-items:center;padding:5px 8px;border-bottom:1px solid var(--line)}
 .fi:last-child{border-bottom:0}
 .fi input[type=checkbox]{margin:0;width:14px;height:14px;accent-color:var(--accent)}
@@ -254,12 +255,45 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:8px 14px;border-radius:6px;font-size:12.5px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.show{opacity:1}
 @media (max-width:1060px){.pastezone{max-height:none}.panel.lines .pbody{max-height:50vh}}
+
+/* AI: chat drawer, photos */
+.askbtn{display:inline-flex;align-items:center;gap:6px}
+.askbtn svg{width:14px;height:14px}
+.chat{position:fixed;top:0;right:0;bottom:0;width:min(400px,100vw);background:var(--panel);border-left:1px solid var(--line);box-shadow:-12px 0 32px rgba(0,0,0,.14);z-index:40;display:flex;flex-direction:column}
+.chat[hidden]{display:none}
+@media (min-width:1500px){body.chat-open .app{padding-right:416px}}
+.chat-h{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.chat-h h2{margin:0;font-family:var(--f-display);font-size:19px;letter-spacing:.04em;text-transform:uppercase}
+.chat-h .x{margin-left:auto;border:0;background:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:2px 6px}
+.chatlog{flex:1;overflow:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.msg{font-size:13px;line-height:1.5;padding:8px 11px;border-radius:8px;max-width:92%}
+.msg p{margin:0 0 6px}.msg p:last-child{margin:0}.msg ul{margin:2px 0 6px;padding-left:18px}
+.msg code{font-family:var(--f-mono);font-size:12px}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
+.msg.ai{align-self:flex-start;background:var(--raise);border:1px solid var(--line)}
+.msg .err{color:var(--bad);font-size:12px;margin-top:4px}
+.thinking{color:var(--muted);font-style:italic}
+.chatsugs[hidden]{display:none}
+.chatsugs{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}
+.chatsugs button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:11.5px;color:var(--ink);cursor:pointer}
+.chatsugs button:hover{border-color:var(--accent);color:var(--accent)}
+.chatform{display:flex;gap:8px;padding:10px 14px 14px;border-top:1px solid var(--line);align-items:flex-end}
+.chatform textarea{flex:1;resize:none;min-height:38px;max-height:120px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);padding:8px 10px;font:inherit;font-size:13px}
+.chatform textarea:focus{border-color:var(--accent);outline:none}
+#chatstop{display:none}.chat.busy #chatstop{display:inline-block}.chat.busy #chatsend{display:none}
+.photos{display:flex;gap:6px;flex-wrap:wrap}.photos[hidden]{display:none}
+.photos .ph{position:relative;width:56px;height:56px;border-radius:5px;overflow:hidden;border:1px solid var(--line);background:var(--raise)}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photos .ph button{position:absolute;top:1px;right:1px;width:18px;height:18px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;font-size:12px;line-height:18px;padding:0;cursor:pointer}
+.pastezone.drop{outline:2px dashed var(--accent);outline-offset:-4px}
+.ainote{font-size:11.5px;color:var(--muted);padding:5px 8px;border-bottom:1px solid var(--line)}
 </style>
 
 <div class="app">
   <header class="bar">
     <div class="brand"><h1>Pallet Organizer</h1><span class="tag">load planner</span></div>
     <div class="totals" id="totals"></div>
+    <button type="button" class="btn primary askbtn" id="askopen" hidden title="Ask how the load was worked out, or say how you want it loaded"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v6a1.5 1.5 0 0 1-1.5 1.5H7l-3 3v-3h-.5A1.5 1.5 0 0 1 2 9.5z"/></svg>Ask the planner</button>
   </header>
 
   <main>
@@ -294,12 +328,15 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
       </div>
       <div class="pastezone" aria-labelledby="pz-h">
         <div class="pz-head"><h3 id="pz-h">Paste from email</h3><span class="pz-step">fastest way in</span></div>
-        <p class="pz-help">Copy the whole email (or just the freight part) and paste it below. Dims, weights, pallet counts and stacking are picked out automatically. Addresses, phone numbers, dates and signatures are ignored. Check the lines it found, then load them.</p>
+        <p class="pz-help" id="pz-help">Copy the whole email (or just the freight part) and paste it below. Dims, weights, pallet counts and stacking are picked out automatically. Addresses, phone numbers, dates and signatures are ignored. Check the lines it found, then load them.</p>
         <textarea id="pastebox" spellcheck="false" aria-labelledby="pz-h" placeholder="Paste the email here…   e.g.  3 pallets @ 48x40x48, 650 lbs each   ·   (1) 1 Pallet, 500 lbs., L48 x W40 x H78   ·   Dims 48x48x24 – 18-22 crates – 20,000 lbs"></textarea>
+        <div class="photos" id="photos" hidden></div>
         <div class="found" id="found"></div>
         <div class="pz-actions">
           <span class="sum" id="foundsum"></span><span class="spacer"></span>
           <button type="button" class="txtbtn" id="pastesample">Try a sample</button>
+          <button type="button" class="btn" id="pastephoto" hidden title="Add a picture: a packing list, BOL, screenshot, or a photo of the item">Add picture</button><input type="file" id="photofile" accept="image/*" multiple hidden>
+          <button type="button" class="btn" id="pasteai" hidden disabled title="Have AI read the text and pictures above">Read with AI</button>
           <button type="button" class="btn" id="pasteadd" disabled>Add to list</button>
           <button type="button" class="btn primary" id="pasteload" disabled>Load these pallets</button>
         </div>
@@ -314,6 +351,12 @@ svg .stackmark{fill:none;stroke:var(--pal-ink);stroke-width:1;opacity:.55}
   </main>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 </div>
+<aside class="chat" id="chat" hidden aria-labelledby="chat-h">
+  <div class="chat-h"><h2 id="chat-h">Ask the planner</h2><button type="button" class="x" id="chatclose" aria-label="Close">×</button></div>
+  <div class="chatlog" id="chatlog" aria-live="polite"></div>
+  <div class="chatsugs" id="chatsugs"><button type="button">Why this truck?</button><button type="button">Put the heaviest pallets at the nose</button><button type="button">Will it fit a 90″ wide trailer?</button><button type="button">Why didn’t it turn line 1?</button></div>
+  <form class="chatform" id="chatform"><textarea id="chatin" rows="2" placeholder="Ask, or say how you want it loaded…" aria-label="Message"></textarea><button type="submit" class="btn primary" id="chatsend">Send</button><button type="button" class="btn" id="chatstop">Stop</button></form>
+</aside>
 
 <script>
 /* ---------- paste parser: free text (emails, tables, notes) -> pallet lines in inches / lb ----------
@@ -1070,13 +1113,13 @@ Thanks,
 Mike  |  Ph: 847-555-0100`;
 document.getElementById('pastesample').addEventListener('click',()=>{box.value=SAMPLE;reparse();box.focus()});
 let pt=0;box.addEventListener('input',()=>{clearTimeout(pt);pt=setTimeout(reparse,120)});
-function reparse(){PI=PasteParser.parse(box.value).map(it=>Object.assign(it,{on:true,wtMode:it.wtMode||'each'}));renderFound()}
+function reparse(){AINOTE='';PI=PasteParser.parse(box.value).map(it=>Object.assign(it,{on:true,wtMode:it.wtMode||'each'}));renderFound()}
 const CHIP={'weight read as total':'weight is for all — switch to “each” if not','weight split from total':'weight split from a total','height guessed':'height guessed','read as cm':'read as cm'};
 function renderFound(){
-  if(!box.value.trim()){foundEl.innerHTML='';updPaste();return}
+  if(!box.value.trim()&&!PI.length){foundEl.innerHTML='';updPaste();return}
   if(!PI.length){foundEl.innerHTML=`<div class="pz-empty">No pallet sizes found yet. A line needs three dimensions, like 48x40x50, L48 x W40 x H50 or 48" W x 48" L x 60" H.</div>`;updPaste();return}
   const du=S.dimU==='cm'?' cm':'″';
-  foundEl.innerHTML=PI.map((it,i)=>{
+  foundEl.innerHTML=(PI.some(x=>x.ai)&&AINOTE?`<div class="ainote">AI: ${esc(AINOTE)}</div>`:'')+PI.map((it,i)=>{
     const chips=[];
     if(it.wt==null)chips.push('no weight');
     if(it.qtyGuessed)chips.push('qty assumed 1');
@@ -1094,6 +1137,7 @@ function updPaste(){
   const lines=pasteLines(),n=lines.reduce((a,r)=>a+r.qty,0),wt=lines.reduce((a,r)=>a+r.qty*r.wt,0);
   document.getElementById('foundsum').innerHTML=n?`Found <b>${n}</b> pallet${n===1?'':'s'} · <b>${fmtWt(wt)}</b>`:'';
   document.getElementById('pasteadd').disabled=!n;document.getElementById('pasteload').disabled=!n;
+  const ab=document.getElementById('pasteai');if(ab&&!READCTL)ab.disabled=!(box.value.trim()||PHOTOS.length);
 }
 foundEl.addEventListener('change',e=>{const i=e.target.dataset.i;if(i==null)return;PI[+i].on=e.target.checked;e.target.closest('.fi').classList.toggle('off',!PI[+i].on);updPaste()});
 foundEl.addEventListener('click',e=>{const m=e.target.dataset.m;if(!m)return;PI[+e.target.dataset.i].wtMode=m;renderFound()});
@@ -1102,7 +1146,7 @@ function usePaste(replace){
   if(replace)S.rows=[];else S.rows=S.rows.filter(r=>!rowBlank(r));
   for(const r of lines){S.nextId=(S.nextId||Date.now())+1;S.rows.push({id:S.nextId,qty:r.qty,l:r.l,w:r.w,h:r.h,wt:r.wt,stack:r.stack,fix:!!r.fix})}
   const n=lines.reduce((a,r)=>a+r.qty,0);
-  save();renderRows();plan();box.value='';PI=[];renderFound();
+  save();renderRows();plan();box.value='';PI=[];PHOTOS=[];renderPhotos();renderFound();
   toast(`${replace?'Loaded':'Added'} ${n} pallet${n===1?'':'s'} on ${lines.length} line${lines.length===1?'':'s'}`);
 }
 document.getElementById('pasteadd').addEventListener('click',()=>usePaste(false));
@@ -1280,6 +1324,209 @@ planBody.addEventListener('change',e=>{
 planBody.addEventListener('click',e=>{
   if(e.target.id==='layreset'){S.manual=null;save();drawPlan();toast('Back to the original layout')}
 });
+/* ---------- AI: "Ask the planner" chat + reading photos (only where Claude is available) ---------- */
+let AI=null,AI_IMG=false,AI_TOOLS=false;
+const chatEl=document.getElementById('chat'),chatLog=document.getElementById('chatlog'),chatIn=document.getElementById('chatin');
+const photosEl=document.getElementById('photos'),photoFile=document.getElementById('photofile');
+let PHOTOS=[],AINOTE='';
+(async()=>{
+  if(!window.claude||typeof claude.use!=='function')return;
+  let s=null;try{s=await claude.use('sample')}catch(e){}
+  if(!s)return;
+  AI=s;
+  const lim=await s.limits().catch(()=>null);
+  AI_IMG=!!(lim&&lim.images);AI_TOOLS=!!(lim&&lim.tools);
+  document.getElementById('askopen').hidden=false;
+  document.getElementById('pasteai').hidden=false;
+  if(AI_IMG){
+    document.getElementById('pastephoto').hidden=false;
+    if(lim.images.mediaTypes)photoFile.accept=lim.images.mediaTypes.join(',');
+    document.getElementById('pz-help').innerHTML+=' <b>Pictures work too</b>: paste or drop a packing list, BOL, screenshot, or a photo of the item and AI works out the skid size.';
+  }
+  updPaste();
+})();
+function aiErr(e){
+  const c=e&&e.code;
+  if(c==='not_granted'||c==='sampling_disabled'||c==='capability_disabled'||c==='not_declared')return 'AI isn’t allowed for this page. You can turn it on from the artifact’s Permissions menu.';
+  if(c==='rate_limited')return 'Too many AI requests right now. Wait a minute and try again.';
+  if(c==='session_expired')return 'Your Claude sign-in expired. Sign in again and retry.';
+  if(c==='image_rejected')return 'That picture couldn’t be read. Try a JPG or PNG under 20 MB.';
+  if(c==='refused')return 'AI declined that request. Try rewording it.';
+  if(c==='invalid_json'||c==='empty_completion')return 'AI didn’t return usable sizes. Try again, or add a note in the box about what’s shown.';
+  return 'AI couldn’t answer just now. Try again.';
+}
+
+/* ----- the plan, as data the AI can read ----- */
+function truckSummary(id){const res=R.res[id];if(!res)return null;
+  return{id,name:res.T.name,inside_length:res.T.L,inside_width:res.T.W,inside_height:res.T.H,max_payload_lb:res.T.P,
+    fits_everything:res.fits,floor_used_in:r1(res.t.len),billable_feet:Math.ceil(res.t.len/12-1e-9),left_off:res.leftN}}
+function planState(){
+  const id=viewId(),res=applyManual(id,R.res[id]);
+  return{
+    units:'All sizes are inches, all weights pounds. Length runs along the trailer (nose to doors), width runs across it.',
+    lines:S.rows.map((r,i)=>({line:i+1,qty:r.qty,length:r.l,width:r.w,height:r.h,weight_each:r.wt,stackable:!!r.stack,fixed_no_turn:!!r.fix,complete:rowComplete(r)})),
+    totals:{pallets:R.pallets,weight_lb:R.weight},
+    truck_shown:Object.assign(truckSummary(id)||{},{how_chosen:(!S.view||S.view==='auto')?'automatic: smallest box truck/trailer that takes everything':'picked by the user'}),
+    layout:{hand_arranged:!!res.manual,floor_used_in:r1(res.t.len),weight_on_truck_lb:res.t.wt,
+      pallets:res.t.items.map((p,k)=>({index:k,line:p.it.line+1,stacked_two_high:p.it.n>1,from_nose:r1(p.y),from_left_wall:r1(p.x),
+        along:p.d,across:p.a,turned:Math.abs(p.d-p.it.l)>.01,height:p.it.h,weight_lb:p.it.wt}))},
+    left_off:res.left.map(b=>({line:b.it.line+1,count:b.it.n,reason:b.why})),
+    all_trucks:PRESETS.map(p=>truckSummary(p.id)).concat([truckSummary('custom')]).filter(Boolean)
+  };
+}
+const HOW=`How this load planner works:
+- Each pallet line has qty, length, width, height, weight each, a "Stk" box (two of them can stack) and a "Fix" box (don't turn: length must run along the trailer).
+- Stackable pallets are paired two high when twice the height fits under the inside height; a pair counts as one floor spot with double weight.
+- The floor plan is packed from the nose back. It tries several placement rules (MaxRects best-fit and row/shelf packing) over several loading orders, turning pallets 90° when that saves room (unless Fix is on), and keeps whichever layout ends closest to the nose.
+- Payload is checked in line order; pallets that would go over payload, are too tall, or have no floor room left are listed as left off.
+- "Smallest that fits" picks the first of cargo van, 16', 24', 26' box truck, 48' and 53' dry van that takes every pallet. Flatbed and containers are shown for comparison only.
+- Trailer footage ("17 ft") is floor used from the nose, rounded up to the next whole foot.
+- People can also click a pallet to turn it, drag it, snap to grid, and Reset layout. A custom truck lets them type any inside size (e.g. 90" wide).
+- It does not model axle weights, load bars, or weight distribution; say so if asked.`;
+
+/* ----- tools the AI can use to change the app ----- */
+function afterChange(){save();renderRows();plan();return planState()}
+const num=(v,d)=>{const n=Number(v);return isFinite(n)&&n>=0?n:d};
+function lineFrom(o,base){base=base||{};return{
+  qty:Math.round(num(o.qty,base.qty||0)),l:num(o.length,base.l||0),w:num(o.width,base.w||0),h:num(o.height,base.h||0),
+  wt:num(o.weight_each,base.wt||0),stack:o.stackable==null?!!base.stack:!!o.stackable,fix:o.fixed_no_turn==null?!!base.fix:!!o.fixed_no_turn}}
+const LINE_SCHEMA={type:'object',properties:{qty:{type:'number'},length:{type:'number',description:'inches, runs along the trailer when fixed'},width:{type:'number'},height:{type:'number'},weight_each:{type:'number',description:'pounds per pallet'},stackable:{type:'boolean'},fixed_no_turn:{type:'boolean'}}};
+const TOOLS=[
+  {name:'get_plan',description:'Returns the current pallet lines, the truck shown, every pallet’s position on the floor (inches from the nose and from the left wall), what was left off and why, and how every truck size compares.',
+   execute:()=>planState()},
+  {name:'set_lines',description:'Replace the whole pallet list, or add lines to it (mode "add"). Returns the new plan.',
+   inputSchema:{type:'object',properties:{mode:{type:'string',enum:['replace','add']},lines:{type:'array',items:LINE_SCHEMA}},required:['lines']},
+   execute:(i)=>{const L=(Array.isArray(i.lines)?i.lines:[]).map(o=>lineFrom(o)).filter(r=>r.qty>0&&r.l>0&&r.w>0&&r.h>0);
+     if(!L.length)throw new Error('No complete lines (need qty, length, width, height).');
+     S.rows=i.mode==='add'?S.rows.filter(r=>!rowBlank(r)):[];
+     for(const r of L){S.nextId=(S.nextId||Date.now())+1;S.rows.push(Object.assign({id:S.nextId},r))}
+     S.manual=null;return afterChange()}},
+  {name:'update_line',description:'Change some fields of one pallet line (1-based line number). Only the fields given change. Returns the new plan.',
+   inputSchema:{type:'object',properties:Object.assign({line:{type:'number'}},LINE_SCHEMA.properties),required:['line']},
+   execute:(i)=>{const r=S.rows[Math.round(num(i.line,0))-1];if(!r)throw new Error('No such line.');Object.assign(r,lineFrom(i,r));return afterChange()}},
+  {name:'remove_line',description:'Delete one pallet line (1-based). Returns the new plan.',
+   inputSchema:{type:'object',properties:{line:{type:'number'}},required:['line']},
+   execute:(i)=>{const k=Math.round(num(i.line,0))-1;if(!S.rows[k])throw new Error('No such line.');S.rows.splice(k,1);if(!S.rows.length)addRow();return afterChange()}},
+  {name:'choose_truck',description:'Show a truck: "auto" (smallest that fits), one of the ids van,b16,b24,b26,v48,v53,f48,c20,c40, or "custom" with any inside sizes (blank sizes use the 53′ dry van’s). Returns the new plan.',
+   inputSchema:{type:'object',properties:{truck:{type:'string'},custom_length:{type:'number'},custom_width:{type:'number'},custom_height:{type:'number'},custom_payload_lb:{type:'number'}},required:['truck']},
+   execute:(i)=>{const t=String(i.truck||'auto');
+     if(t==='custom'){S.custom={L:num(i.custom_length,0),W:num(i.custom_width,0),H:num(i.custom_height,0),P:num(i.custom_payload_lb,0)};renderCustom()}
+     else if(t!=='auto'&&!PRESETS.some(p=>p.id===t))throw new Error('Unknown truck id.');
+     S.view=t;return afterChange()}},
+  {name:'arrange_pallets',description:'Move pallets on the floor of the truck shown, by index from get_plan. from_nose and from_left_wall are the pallet’s front-left corner in inches. turned:true puts its width along the trailer (not allowed for fixed lines). Pallets not listed stay put. Returns the new plan, including any overlaps.',
+   inputSchema:{type:'object',properties:{moves:{type:'array',items:{type:'object',properties:{index:{type:'number'},from_nose:{type:'number'},from_left_wall:{type:'number'},turned:{type:'boolean'}},required:['index']}}},required:['moves']},
+   execute:(i)=>{
+     if(!LAY)throw new Error('No pallets on the floor yet.');
+     const items=curItems(),src=LAY.res.t.items,T=LAY.res.T,notes=[];
+     for(const m of (Array.isArray(i.moves)?i.moves:[])){
+       const k=Math.round(num(m.index,-1)),me=items[k];if(!me){notes.push(`no pallet ${m.index}`);continue}
+       const it=src[k].it;
+       if(m.turned!=null){if(m.turned&&it.fix)notes.push(`pallet ${k} is fixed, not turned`);else{const along=m.turned?it.w:it.l,across=m.turned?it.l:it.w;
+         if(across>T.W+1e-6)notes.push(`pallet ${k} too wide to turn`);else{me.d=along;me.a=across}}}
+       if(m.from_nose!=null)me.y=num(m.from_nose,me.y);if(m.from_left_wall!=null)me.x=num(m.from_left_wall,me.x);
+       me.x=Math.max(0,Math.min(T.W-me.a,me.x));me.y=Math.max(0,Math.min(T.L-me.d,me.y));
+     }
+     commitLayout(items);
+     const bad=[...overlaps(curItems())];
+     return Object.assign(planState(),{notes,overlapping_indexes:bad})}},
+  {name:'reset_layout',description:'Undo hand arranging and go back to the planner’s own layout.',
+   execute:()=>{S.manual=null;save();drawPlan();return planState()}}
+];
+
+/* ----- chat drawer ----- */
+let TURNS=[],CHATCTL=null;
+const RULES=`You are the assistant inside "Pallet Organizer", a freight load planner used by dispatchers and freight brokers. Answer questions about how it is calculating, and when the person describes how they want something loaded, make the change with your tools (then say briefly what you changed and what it does to the footage or truck). Be short and plain; use feet and inches the way truckers talk. If a request can't be done (e.g. a pallet too wide to turn), say so and offer the nearest option. Never invent numbers: read them from the plan data.
+
+${HOW}`;
+function md(t){
+  return esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>')
+    .split(/\n{2,}/).map(p=>/^\s*[-•*] /m.test(p)?'<ul>'+p.split('\n').filter(l=>l.trim()).map(l=>'<li>'+l.replace(/^\s*[-•*] /,'')+'</li>').join('')+'</ul>':'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('');
+}
+function bubble(role,html){const d=document.createElement('div');d.className='msg '+role;d.innerHTML=html;chatLog.appendChild(d);chatLog.scrollTop=chatLog.scrollHeight;return d}
+function openChat(){chatEl.hidden=false;document.body.classList.add('chat-open');if(!chatLog.children.length)bubble('ai',`<p>Ask me how this load was worked out, or tell me how you want it loaded, like <i>“heavy pallets at the nose”</i> or <i>“will it fit a 90″ wide trailer?”</i>. I can change the pallet list, the truck, and where pallets sit.</p>`);setTimeout(()=>chatIn.focus(),50);requestAnimationFrame(()=>{if(R)drawPlan()})}
+function closeChat(){chatEl.hidden=true;document.body.classList.remove('chat-open');requestAnimationFrame(()=>{if(R)drawPlan()})}
+document.getElementById('askopen').addEventListener('click',()=>chatEl.hidden?openChat():closeChat());
+document.getElementById('chatclose').addEventListener('click',closeChat);
+document.getElementById('chatsugs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;chatIn.value=b.textContent;sendChat()});
+document.getElementById('chatform').addEventListener('submit',e=>{e.preventDefault();sendChat()});
+chatIn.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat()}});
+document.getElementById('chatstop').addEventListener('click',()=>CHATCTL&&CHATCTL.abort());
+async function sendChat(){
+  const q=chatIn.value.trim();if(!q||CHATCTL||!AI)return;
+  chatIn.value='';document.getElementById('chatsugs').hidden=true;
+  bubble('me','<p>'+esc(q).replace(/\n/g,'<br>')+'</p>');
+  TURNS.push({role:'user',content:q});
+  const b=bubble('ai','<p class="thinking">Thinking…</p>');
+  const ctl=CHATCTL=new AbortController();chatEl.classList.add('busy');
+  const snap='\n\n[Current plan data]\n'+JSON.stringify(planState());
+  const hist=TURNS.slice(-12);if(hist[0].role!=='user')hist.shift();
+  const input=[{role:'user',content:RULES},...hist.slice(0,-1),{role:'user',content:q+snap}];
+  const opts={signal:ctl.signal,cache:false,onText:({text})=>{b.innerHTML=md(text);chatLog.scrollTop=chatLog.scrollHeight}};
+  if(AI_TOOLS){delete opts.cache;opts.tools=TOOLS.map(t=>Object.assign({},t,{execute:(i,c)=>{b.insertAdjacentHTML('beforeend','<p class="thinking">Updating the plan…</p>');return t.execute(i||{},c)}}))}
+  try{const r=await AI(input,opts);b.innerHTML=md(r.text);TURNS.push({role:'assistant',content:r.text})}
+  catch(e){
+    if(e&&e.text&&e.code!=='refused'){b.innerHTML=md(e.text);TURNS.push({role:'assistant',content:e.text})}else b.innerHTML='';
+    if(!e||e.code!=='cancelled')b.insertAdjacentHTML('beforeend',`<p class="err">${esc(aiErr(e))}</p>`);
+    if(!b.innerHTML)b.remove();
+  }
+  finally{CHATCTL=null;chatEl.classList.remove('busy');chatLog.scrollTop=chatLog.scrollHeight}
+}
+
+/* ----- photos in the paste box ----- */
+function addPhotos(files){
+  const imgs=[...files].filter(f=>/^image\//.test(f.type));if(!imgs.length)return false;
+  if(!AI_IMG){toast('Reading pictures needs the Claude version of this app');return true}
+  PHOTOS=PHOTOS.concat(imgs).slice(-4);renderPhotos();readWithAI();return true;
+}
+function renderPhotos(){
+  photosEl.querySelectorAll('img').forEach(i=>URL.revokeObjectURL(i.src));
+  photosEl.innerHTML=PHOTOS.map((f,i)=>`<span class="ph"><img src="${URL.createObjectURL(f)}" alt="Picture ${i+1}"><button type="button" data-i="${i}" aria-label="Remove picture ${i+1}">×</button></span>`).join('');
+  photosEl.hidden=!PHOTOS.length;updPaste();
+}
+photosEl.addEventListener('click',e=>{const i=e.target.dataset.i;if(i==null)return;PHOTOS.splice(+i,1);renderPhotos();if(!PHOTOS.length&&PI.some(x=>x.ai))reparse()});
+document.getElementById('pastephoto').addEventListener('click',()=>photoFile.click());
+photoFile.addEventListener('change',()=>{addPhotos(photoFile.files);photoFile.value=''});
+box.addEventListener('paste',e=>{const dt=e.clipboardData;if(!dt)return;const files=[...dt.files||[]];
+  if(files.some(f=>/^image\//.test(f.type))&&!dt.getData('text/plain').trim()){e.preventDefault();addPhotos(files)}});
+const pz=document.querySelector('.pastezone');
+pz.addEventListener('dragover',e=>{if([...e.dataTransfer.items||[]].some(i=>i.kind==='file')){e.preventDefault();pz.classList.add('drop')}});
+pz.addEventListener('dragleave',e=>{if(!pz.contains(e.relatedTarget))pz.classList.remove('drop')});
+pz.addEventListener('drop',e=>{pz.classList.remove('drop');if(e.dataTransfer.files.length){e.preventDefault();addPhotos(e.dataTransfer.files)}});
+document.getElementById('pasteai').addEventListener('click',readWithAI);
+let READCTL=null;
+async function readWithAI(){
+  if(!AI)return;const txt=box.value.trim();if(!txt&&!PHOTOS.length)return;
+  if(READCTL)READCTL.abort();const ctl=READCTL=new AbortController();
+  const btn=document.getElementById('pasteai');btn.disabled=true;btn.textContent='Reading…';
+  foundEl.innerHTML='<div class="pz-empty thinking">AI is reading '+(PHOTOS.length?(PHOTOS.length>1?'the pictures':'the picture'):'the text')+'… this can take 10–30 seconds.</div>';
+  const prompt=`You turn freight information into pallet lines for a truck load planner. ${PHOTOS.length?`You get ${PHOTOS.length} picture(s)`:'You get text'}${PHOTOS.length&&txt?' plus text the user typed or pasted':''}.
+
+Do whichever fits:
+A) If it shows shipment details (an email, packing list, BOL, quote request, spreadsheet, handwritten note, label): pull out every handling unit with its count, dimensions, weight and stacking notes. Ignore addresses, phone numbers, PO numbers, dates and prices.
+B) If it shows a physical object or freight (a machine, furniture, boxes, a crate, a pallet): identify it, estimate its real size and weight, and say what it would ship on. Use a standard skid when it fits: 48x40 (GMA), 48x48, 42x42, 40x40, 36x36, or 48x45; if it overhangs those use a custom skid or crate just big enough. Total height = item height + about 5" for the skid. Weight = item + about 40 lb for a wooden skid. Mark these as estimated.
+
+Rules: inches and pounds only (convert cm/mm/kg). length is the longer side of the footprint unless the text says otherwise. weight_each is per unit (divide a total by the count). stackable only if it says stackable/can stack, or it is clearly a stackable boxed load; non-stackable if it says so or is fragile/top-heavy. do_not_turn only if it says don't turn / this side forward.
+
+Reply with only JSON:
+{"summary":"one short sentence of what you saw","items":[{"qty":1,"length":48,"width":40,"height":55,"weight_each":620,"stackable":false,"do_not_turn":false,"what":"short name of the item","estimated":false,"note":"anything to double-check, or empty"}]}
+If nothing usable is there, return "items":[] and say why in summary.${txt?'\n\nText:\n'+txt.slice(0,12000):''}`;
+  try{
+    const out=await AI.json(prompt,{signal:ctl.signal,images:PHOTOS.length?PHOTOS:undefined});
+    if(ctl!==READCTL)return;
+    const items=(out&&Array.isArray(out.items)?out.items:[]).map(o=>{
+      const q=Math.max(1,Math.round(num(o.qty,1))),a=num(o.length,0),b=num(o.width,0);
+      const flags=[o.estimated?'AI estimate — check':'read by AI'];if(o.note)flags.push(String(o.note).slice(0,80));
+      return{qty:q,l:a||b,w:b||a,h:num(o.height,0),wt:o.weight_each==null?null:num(o.weight_each,0),wtMode:'each',
+        stack:!!o.stackable,fix:!!o.do_not_turn,flags,src:String(o.what||'').slice(0,120)||'from picture',on:true,ai:true}});
+    PI=items.filter(it=>it.l>0&&it.w>0&&it.h>0);AINOTE=out&&out.summary?String(out.summary).slice(0,300):'';
+    renderFound();
+    if(!PI.length)foundEl.innerHTML=`<div class="pz-empty">${esc(AINOTE||'AI found no pallet sizes in that.')}</div>`;
+  }catch(e){
+    if(e&&e.code==='cancelled')return;
+    foundEl.innerHTML=`<div class="pz-empty">${esc(aiErr(e))}</div>`;
+  }finally{if(ctl===READCTL){READCTL=null;btn.disabled=false;btn.textContent='Read with AI'}}
+}
+
 renderAll();
 })();
 </script>
