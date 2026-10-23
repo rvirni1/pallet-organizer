@@ -1326,7 +1326,7 @@ planBody.addEventListener('click',e=>{
   if(e.target.id==='layreset'){S.manual=null;save();drawPlan();toast('Back to the original layout')}
 });
 /* ---------- AI through our own relay (public site): same shape as Claude's sample() ---------- */
-const RELAY_URL='';
+const RELAY_URL='https://pallet-ai.rvirni1.workers.dev/';
 function relaySample(url){
   async function shrink(blob){
     const bmp=await createImageBitmap(blob);const k=Math.min(1,1568/Math.max(bmp.width,bmp.height));
