@@ -633,8 +633,8 @@ const PasteParser=(function(){
     for(const it of items){
       let each=it.wt;
       if(each!=null&&it.qty>1&&it.wtMode==='total')each=it.wt/it.qty;
-      const r={qty:it.qty,l:it.l,w:it.w,h:it.h,wt:each||0,stack:it.stack,fix:!!it.fix};
-      const k=[r.l,r.w,r.h,r.wt,r.stack,r.fix].map(x=>typeof x==='number'?x.toFixed(2):x).join('|');
+      const r={qty:it.qty,l:it.l,w:it.w,h:it.h,wt:each||0,stack:it.stack,fix:!!it.fix,name:it.name||''};
+      const k=[r.l,r.w,r.h,r.wt,r.stack,r.fix,r.name].map(x=>typeof x==='number'?x.toFixed(2):x).join('|');
       const hit=combine&&out.find(o=>o.k===k);
       if(hit)hit.qty+=r.qty;else out.push(Object.assign(r,{k}));
     }
@@ -715,7 +715,7 @@ function renderRows(){
   document.getElementById('rows').innerHTML=S.rows.map((r,i)=>{
     const v=(x,fn)=>x>0?fn(x):'';
     return `<div class="row${rowComplete(r)||rowBlank(r)?'':' incomplete'}" data-id="${r.id}">
-      <span class="badge" style="background:var(--c${i%COLORS+1})">${i+1}</span>
+      <span class="badge" style="background:var(--c${i%COLORS+1})"${r.name?` title="${esc(r.name)}"`:''}>${i+1}</span>
       <input class="num" id="q-${r.id}" data-f="qty" inputmode="numeric" maxlength="4" placeholder="0" aria-label="Line ${i+1} quantity" value="${v(r.qty,x=>x)}">
       <input class="num" id="l-${r.id}" data-f="l" inputmode="decimal" maxlength="6" placeholder="L" aria-label="Line ${i+1} length" value="${v(r.l,dimOut)}">
       <input class="num" id="w-${r.id}" data-f="w" inputmode="decimal" maxlength="6" placeholder="W" aria-label="Line ${i+1} width" value="${v(r.w,dimOut)}">
@@ -1145,7 +1145,7 @@ foundEl.addEventListener('click',e=>{const m=e.target.dataset.m;if(!m)return;PI[
 function usePaste(replace){
   const lines=pasteLines();if(!lines.length)return;
   if(replace)S.rows=[];else S.rows=S.rows.filter(r=>!rowBlank(r));
-  for(const r of lines){S.nextId=(S.nextId||Date.now())+1;S.rows.push({id:S.nextId,qty:r.qty,l:r.l,w:r.w,h:r.h,wt:r.wt,stack:r.stack,fix:!!r.fix})}
+  for(const r of lines){S.nextId=(S.nextId||Date.now())+1;S.rows.push({id:S.nextId,qty:r.qty,l:r.l,w:r.w,h:r.h,wt:r.wt,stack:r.stack,fix:!!r.fix,name:r.name||''})}
   const n=lines.reduce((a,r)=>a+r.qty,0);
   save();renderRows();plan();box.value='';PI=[];PHOTOS=[];renderPhotos();renderFound();
   toast(`${replace?'Loaded':'Added'} ${n} pallet${n===1?'':'s'} on ${lines.length} line${lines.length===1?'':'s'}`);
@@ -1429,11 +1429,11 @@ function planState(){
   const id=viewId(),res=applyManual(id,R.res[id]);
   return{
     units:'All sizes are inches, all weights pounds. Length runs along the trailer (nose to doors), width runs across it.',
-    lines:S.rows.map((r,i)=>({line:i+1,qty:r.qty,length:r.l,width:r.w,height:r.h,weight_each:r.wt,stackable:!!r.stack,fixed_no_turn:!!r.fix,complete:rowComplete(r)})),
+    lines:S.rows.map((r,i)=>({line:i+1,name:r.name||undefined,qty:r.qty,length:r.l,width:r.w,height:r.h,weight_each:r.wt,stackable:!!r.stack,fixed_no_turn:!!r.fix,complete:rowComplete(r)})),
     totals:{pallets:R.pallets,weight_lb:R.weight},
     truck_shown:Object.assign(truckSummary(id)||{},{how_chosen:(!S.view||S.view==='auto')?'automatic: smallest box truck/trailer that takes everything':'picked by the user'}),
     layout:{hand_arranged:!!res.manual,floor_used_in:r1(res.t.len),weight_on_truck_lb:res.t.wt,
-      pallets:res.t.items.map((p,k)=>({index:k,line:p.it.line+1,stacked_two_high:p.it.n>1,from_nose:r1(p.y),from_left_wall:r1(p.x),
+      pallets:res.t.items.map((p,k)=>({index:k,line:p.it.line+1,name:(S.rows[p.it.line]||{}).name||undefined,stacked_two_high:p.it.n>1,from_nose:r1(p.y),from_left_wall:r1(p.x),
         along:p.d,across:p.a,turned:Math.abs(p.d-p.it.l)>.01,height:p.it.h,weight_lb:p.it.wt}))},
     left_off:res.left.map(b=>({line:b.it.line+1,count:b.it.n,reason:b.why})),
     all_trucks:PRESETS.map(p=>truckSummary(p.id)).concat([truckSummary('custom')]).filter(Boolean)
@@ -1454,8 +1454,8 @@ function afterChange(){save();renderRows();plan();return planState()}
 const num=(v,d)=>{const n=Number(v);return isFinite(n)&&n>=0?n:d};
 function lineFrom(o,base){base=base||{};return{
   qty:Math.round(num(o.qty,base.qty||0)),l:num(o.length,base.l||0),w:num(o.width,base.w||0),h:num(o.height,base.h||0),
-  wt:num(o.weight_each,base.wt||0),stack:o.stackable==null?!!base.stack:!!o.stackable,fix:o.fixed_no_turn==null?!!base.fix:!!o.fixed_no_turn}}
-const LINE_SCHEMA={type:'object',properties:{qty:{type:'number'},length:{type:'number',description:'inches, runs along the trailer when fixed'},width:{type:'number'},height:{type:'number'},weight_each:{type:'number',description:'pounds per pallet'},stackable:{type:'boolean'},fixed_no_turn:{type:'boolean'}}};
+  name:o.name!=null?String(o.name).slice(0,60):(base.name||''),wt:num(o.weight_each,base.wt||0),stack:o.stackable==null?!!base.stack:!!o.stackable,fix:o.fixed_no_turn==null?!!base.fix:!!o.fixed_no_turn}}
+const LINE_SCHEMA={type:'object',properties:{name:{type:'string',description:'what is on it, e.g. Probe cases'},qty:{type:'number'},length:{type:'number',description:'inches, runs along the trailer when fixed'},width:{type:'number'},height:{type:'number'},weight_each:{type:'number',description:'pounds per pallet'},stackable:{type:'boolean'},fixed_no_turn:{type:'boolean'}}};
 const TOOLS=[
   {name:'get_plan',description:'Returns the current pallet lines, the truck shown, every pallet’s position on the floor (inches from the nose and from the left wall), what was left off and why, and how every truck size compares.',
    execute:()=>planState()},
@@ -1582,7 +1582,7 @@ If nothing usable is there, return "items":[] and say why in summary.${txt?'\n\n
       const q=Math.max(1,Math.round(num(o.qty,1))),a=num(o.length,0),b=num(o.width,0);
       const flags=[o.estimated?'AI estimate — check':'read by AI'];if(o.note)flags.push(String(o.note).slice(0,80));
       return{qty:q,l:a||b,w:b||a,h:num(o.height,0),wt:o.weight_each==null?null:num(o.weight_each,0),wtMode:'each',
-        stack:!!o.stackable,fix:!!o.do_not_turn,flags,src:String(o.what||'').slice(0,120)||'from picture',on:true,ai:true}});
+        stack:!!o.stackable,fix:!!o.do_not_turn,flags,src:String(o.what||'').slice(0,120)||'from picture',name:String(o.what||'').slice(0,60),on:true,ai:true}});
     PI=items.filter(it=>it.l>0&&it.w>0&&it.h>0);AINOTE=out&&out.summary?String(out.summary).slice(0,300):'';
     renderFound();
     if(!PI.length)foundEl.innerHTML=`<div class="pz-empty">${esc(AINOTE||'AI found no pallet sizes in that.')}</div>`;
