@@ -1325,14 +1325,78 @@ planBody.addEventListener('change',e=>{
 planBody.addEventListener('click',e=>{
   if(e.target.id==='layreset'){S.manual=null;save();drawPlan();toast('Back to the original layout')}
 });
+/* ---------- AI through our own relay (public site): same shape as Claude's sample() ---------- */
+const RELAY_URL='';
+function relaySample(url){
+  async function shrink(blob){
+    const bmp=await createImageBitmap(blob);const k=Math.min(1,1568/Math.max(bmp.width,bmp.height));
+    const c=document.createElement('canvas');c.width=Math.round(bmp.width*k);c.height=Math.round(bmp.height*k);
+    const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(bmp,0,0,c.width,c.height);
+    return c.toDataURL('image/jpeg',0.85).split(',')[1];
+  }
+  async function call(body,signal){
+    let r;
+    try{r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),signal})}
+    catch(e){throw e&&e.name==='AbortError'?{code:'cancelled'}:{code:'upstream_error',message:String(e)}}
+    if(!r.ok){const t=await r.text().catch(()=>'');throw{code:r.status===429?'rate_limited':r.status===400?'invalid_request':r.status===413?'image_rejected':'upstream_error',message:t.slice(0,300)}}
+    return r.json();
+  }
+  async function run(input,opts){
+    opts=opts||{};
+    const turns=typeof input==='string'?[{role:'user',content:input}]:input;
+    const msgs=[];
+    for(const t of turns){const last=msgs[msgs.length-1];if(last&&last.role===t.role)last.content+='\n\n'+t.content;else msgs.push({role:t.role,content:String(t.content)})}
+    const imgs=opts.images?(opts.images instanceof Blob?[opts.images]:[...opts.images]):[];
+    if(imgs.length){
+      const blocks=[];
+      try{for(const b of imgs)blocks.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await shrink(b)}})}
+      catch(e){throw{code:'image_rejected',message:'Could not open that picture'}}
+      const last=msgs[msgs.length-1];last.content=[...blocks,{type:'text',text:last.content}];
+    }
+    const tools=opts.tools||[];
+    const apiTools=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema||{type:'object',properties:{}}}));
+    let all='';
+    for(let round=0;round<8;round++){
+      let res;
+      try{res=await call({messages:msgs,tools:apiTools.length&&round<7?apiTools:undefined},opts.signal)}
+      catch(e){if(all)e.text=all;throw e}
+      const text=(res.content||[]).filter(c=>c.type==='text').map(c=>c.text).join('');
+      if(text.trim()){all+=(all?'\n\n':'')+text;opts.onText&&opts.onText({text:all,delta:text})}
+      const uses=(res.content||[]).filter(c=>c.type==='tool_use');
+      if(res.stop_reason!=='tool_use'||!uses.length){
+        if(!all.trim())throw{code:'empty_completion'};
+        return{text:all,truncated:res.stop_reason==='max_tokens',modelTierApplied:'default'};
+      }
+      msgs.push({role:'assistant',content:res.content});
+      const results=[];
+      for(const u of uses){
+        const t=tools.find(x=>x.name===u.name);let out,err=false;
+        try{if(!t)throw new Error('Unknown tool');out=await t.execute(u.input||{},{signal:opts.signal||new AbortController().signal})}
+        catch(e){out='Error: '+(e&&e.message||e);err=true}
+        results.push({type:'tool_result',tool_use_id:u.id,content:typeof out==='string'?out:JSON.stringify(out),...(err?{is_error:true}:{})});
+      }
+      msgs.push({role:'user',content:results});
+    }
+    return{text:all||'Stopped after too many steps.',truncated:true,modelTierApplied:'default'};
+  }
+  run.json=async(input,opts)=>{
+    const{text}=await run(input,opts);
+    const tries=[text,(text.match(/```(?:json)?\s*([\s\S]*?)```/)||[])[1],(()=>{const a=text.search(/[\[{]/),b=Math.max(text.lastIndexOf('}'),text.lastIndexOf(']'));return a>=0&&b>a?text.slice(a,b+1):null})()];
+    for(const t of tries){if(!t)continue;try{return JSON.parse(t)}catch(e){}}
+    throw{code:'invalid_json',text};
+  };
+  run.limits=async()=>({maxPromptBytes:262144,images:{maxCount:4,maxInputBytes:20e6,mediaTypes:['image/jpeg','image/png','image/webp','image/gif']},tools:{maxCount:12}});
+  return run;
+}
 /* ---------- AI: "Ask the planner" chat + reading photos (only where Claude is available) ---------- */
 let AI=null,AI_IMG=false,AI_TOOLS=false;
 const chatEl=document.getElementById('chat'),chatLog=document.getElementById('chatlog'),chatIn=document.getElementById('chatin');
 const photosEl=document.getElementById('photos'),photoFile=document.getElementById('photofile');
 let PHOTOS=[],AINOTE='';
 (async()=>{
-  if(!window.claude||typeof claude.use!=='function')return;
-  let s=null;try{s=await claude.use('sample')}catch(e){}
+  let s=null;
+  if(window.claude&&typeof claude.use==='function'){try{s=await claude.use('sample')}catch(e){}}
+  if(!s&&RELAY_URL&&location.protocol==='https:')s=relaySample(RELAY_URL);
   if(!s)return;
   AI=s;
   const lim=await s.limits().catch(()=>null);
@@ -1506,7 +1570,7 @@ Do whichever fits:
 A) If it shows shipment details (an email, packing list, BOL, quote request, spreadsheet, handwritten note, label): pull out every handling unit with its count, dimensions, weight and stacking notes. Ignore addresses, phone numbers, PO numbers, dates and prices.
 B) If it shows a physical object or freight (a machine, furniture, boxes, a crate, a pallet): identify it, estimate its real size and weight, and say what it would ship on. Use a standard skid when it fits: 48x40 (GMA), 48x48, 42x42, 40x40, 36x36, or 48x45; if it overhangs those use a custom skid or crate just big enough. Total height = item height + about 5" for the skid. Weight = item + about 40 lb for a wooden skid. Mark these as estimated.
 
-Rules: inches and pounds only (convert cm/mm/kg). length is the longer side of the footprint unless the text says otherwise. weight_each is per unit (divide a total by the count). stackable only if it says stackable/can stack, or it is clearly a stackable boxed load; non-stackable if it says so or is fragile/top-heavy. do_not_turn only if it says don't turn / this side forward.
+Rules: inches and pounds only (convert cm/mm/kg). Unlabeled sizes like 53x38x62 are length x width x height in that order: never move the third number out of height. Only swap the first two if needed so length is the longer side of the footprint. weight_each is per unit (divide a total by the count). stackable only if it says stackable/can stack, or it is clearly a stackable boxed load; non-stackable if it says so or is fragile/top-heavy. do_not_turn only if it says don't turn / this side forward. If a unit's size or weight is missing but you can tell what it is (e.g. a named cart or machine), estimate it, set estimated true and say so in note. If you can't tell what it is, leave it out and mention it in summary. Don't count the same item twice when it is described again, pictured, or named by model later in the message.
 
 Reply with only JSON:
 {"summary":"one short sentence of what you saw","items":[{"qty":1,"length":48,"width":40,"height":55,"weight_each":620,"stackable":false,"do_not_turn":false,"what":"short name of the item","estimated":false,"note":"anything to double-check, or empty"}]}
