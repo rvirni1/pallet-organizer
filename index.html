@@ -651,9 +651,9 @@ const PRESETS=[
   {id:'b16', name:'16′ box truck', L:192,W:90, H:84, P:5000,  auto:1},
   {id:'b24', name:'24′ box truck', L:288,W:96, H:96, P:8000,  auto:1},
   {id:'b26', name:'26′ box truck', L:312,W:96, H:96, P:10000, auto:1},
-  {id:'v40', name:'40′ dry van',   L:474,W:99, H:108,P:45000, auto:1, trl:1},
   {id:'v48', name:'48′ dry van',   L:570,W:99, H:108,P:45000, auto:1, trl:1},
   {id:'v53', name:'53′ dry van',   L:630,W:100,H:110,P:45000, auto:1, trl:1},
+  {id:'f40', name:'40′ flatbed',   L:480,W:102,H:102,P:45000},
   {id:'f48', name:'48′ flatbed',   L:576,W:102,H:102,P:48000},
   {id:'c20', name:'20′ container', L:232,W:92, H:94, P:38000},
   {id:'c40', name:'40′ container', L:473,W:92, H:94, P:44000}
@@ -945,6 +945,9 @@ function renderCustom(){
     `<p class="cu-note">Type only what's different, like a 90″ width. Blank boxes use the ${esc(b.name)} size shown in grey.${(c.L||c.W||c.H||c.P)?' <button type="button" class="txtbtn" id="cu-reset">Reset</button>':''}</p>`;
 }
 document.getElementById('fitlist').addEventListener('change',e=>{
+  const prev=R&&R.pallets!==undefined?viewId():null,c=S.custom||{};
+  // switching to Custom from a truck you were looking at: start from that truck, so only the changes need typing
+  if(e.target.value==='custom'&&prev&&prev!=='custom'&&!(c.L||c.W||c.H||c.P)){S.customBase=prev;renderCustom()}
   S.view=e.target.value;save();plan();
   if(S.view==='custom'){const el=document.getElementById('cu-W');document.getElementById('custom').scrollIntoView({block:'nearest',behavior:'smooth'});if(el)el.focus()}
 });
@@ -1445,7 +1448,7 @@ const HOW=`How this load planner works:
 - Stackable pallets are paired two high when twice the height fits under the inside height; a pair counts as one floor spot with double weight.
 - The floor plan is packed from the nose back. It tries several placement rules (MaxRects best-fit and row/shelf packing) over several loading orders, turning pallets 90° when that saves room (unless Fix is on), and keeps whichever layout ends closest to the nose.
 - Payload is checked in line order; pallets that would go over payload, are too tall, or have no floor room left are listed as left off.
-- "Smallest that fits" picks the first of cargo van, 16', 24', 26' box truck, 40', 48' and 53' dry van that takes every pallet. Flatbed and containers are shown for comparison only.
+- "Smallest that fits" picks the first of cargo van, 16', 24', 26' box truck, 48' and 53' dry van that takes every pallet. Flatbeds (40' and 48', 102" wide) and containers are shown for comparison only. For a different flatbed width, use choose_truck custom with custom_base f40 or f48 and custom_width.
 - Trailer footage ("17 ft") is floor used from the nose, rounded up to the next whole foot.
 - People can also click a pallet to turn it, drag it, snap to grid, and Reset layout. A custom truck lets them type any inside size (e.g. 90" wide).
 - It does not model axle weights, load bars, or weight distribution; say so if asked.`;
@@ -1473,10 +1476,10 @@ const TOOLS=[
   {name:'remove_line',description:'Delete one pallet line (1-based). Returns the new plan.',
    inputSchema:{type:'object',properties:{line:{type:'number'}},required:['line']},
    execute:(i)=>{const k=Math.round(num(i.line,0))-1;if(!S.rows[k])throw new Error('No such line.');S.rows.splice(k,1);if(!S.rows.length)addRow();return afterChange()}},
-  {name:'choose_truck',description:'Show a truck: "auto" (smallest that fits), one of the ids van,b16,b24,b26,v40,v48,v53,f48,c20,c40, or "custom" with any inside sizes (blank sizes use the 53′ dry van’s). Returns the new plan.',
-   inputSchema:{type:'object',properties:{truck:{type:'string'},custom_length:{type:'number'},custom_width:{type:'number'},custom_height:{type:'number'},custom_payload_lb:{type:'number'}},required:['truck']},
+  {name:'choose_truck',description:'Show a truck: "auto" (smallest that fits), one of the ids van,b16,b24,b26,v48,v53,f40,f48,c20,c40, or "custom" with any inside sizes; sizes left out come from custom_base (a truck id, default v53), e.g. custom_base f40 + custom_width 96 for a 96-inch 40-foot flatbed. Returns the new plan.',
+   inputSchema:{type:'object',properties:{truck:{type:'string'},custom_base:{type:'string'},custom_length:{type:'number'},custom_width:{type:'number'},custom_height:{type:'number'},custom_payload_lb:{type:'number'}},required:['truck']},
    execute:(i)=>{const t=String(i.truck||'auto');
-     if(t==='custom'){S.custom={L:num(i.custom_length,0),W:num(i.custom_width,0),H:num(i.custom_height,0),P:num(i.custom_payload_lb,0)};renderCustom()}
+     if(t==='custom'){if(PRESETS.some(p=>p.id===i.custom_base))S.customBase=i.custom_base;S.custom={L:num(i.custom_length,0),W:num(i.custom_width,0),H:num(i.custom_height,0),P:num(i.custom_payload_lb,0)};renderCustom()}
      else if(t!=='auto'&&!PRESETS.some(p=>p.id===t))throw new Error('Unknown truck id.');
      S.view=t;return afterChange()}},
   {name:'arrange_pallets',description:'Move pallets on the floor of the truck shown, by index from get_plan. from_nose and from_left_wall are the pallet’s front-left corner in inches. turned:true puts its width along the trailer (not allowed for fixed lines). Pallets not listed stay put. Returns the new plan, including any overlaps.',
